@@ -125,7 +125,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- APP VERSION ---
-            const version = "v1.1";
+            const version = "v1.2";
             document.getElementById('version-display-main').textContent = version;
             document.getElementById('version-display-login').textContent = version;
 
@@ -683,6 +683,8 @@
             // --- INITIALIZATION & AUTHENTICATION ---
             if (firebaseConfig.apiKey === "YOUR_API_KEY") {
                 console.log("Firebase config not set. Running in local preview mode.");
+                appContainer.classList.remove('hidden');
+                authContainer.classList.add('hidden');
                 loadDataFromLocalStorage();
             } else {
                 try {
