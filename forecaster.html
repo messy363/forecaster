@@ -125,7 +125,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- APP VERSION ---
-            const version = "v1.2";
+            const version = "v1.3";
             document.getElementById('version-display-main').textContent = version;
             document.getElementById('version-display-login').textContent = version;
 
@@ -524,12 +524,6 @@
                 }
             });
 
-            document.getElementById('sign-out-button').addEventListener('click', () => {
-                if (auth) {
-                    auth.signOut();
-                }
-            });
-
             document.getElementById('data-cards').addEventListener('click', e => {
                 const target = e.target.closest('button');
                 if (!target) return;
@@ -683,6 +677,7 @@
             // --- INITIALIZATION & AUTHENTICATION ---
             if (firebaseConfig.apiKey === "YOUR_API_KEY") {
                 console.log("Firebase config not set. Running in local preview mode.");
+                document.getElementById('sign-out-button').style.display = 'none';
                 appContainer.classList.remove('hidden');
                 authContainer.classList.add('hidden');
                 loadDataFromLocalStorage();
@@ -692,6 +687,12 @@
                     auth = firebase.auth();
                     db = firebase.firestore();
                     
+                    document.getElementById('sign-out-button').addEventListener('click', () => {
+                        if (auth) {
+                            auth.signOut();
+                        }
+                    });
+
                     const ui = new firebaseui.auth.AuthUI(auth);
 
                     auth.onAuthStateChanged(user => {
