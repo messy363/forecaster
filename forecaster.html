@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome for icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <!-- FirebaseUI CSS -->
+    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.css" />
     <style>
         /* Custom CSS for elements not easily handled by utility classes */
         .sidebar-item {
@@ -41,23 +43,6 @@
             line-height: 1.1;
         }
 
-        /* Custom file input style */
-        .custom-file-input::file-selector-button {
-            margin-right: 1rem;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            border: 0;
-            font-size: 0.875rem;
-            font-weight: 600;
-            background-color: #eef2ff; /* indigo-50 */
-            color: #4338ca; /* indigo-700 */
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .custom-file-input::file-selector-button:hover {
-            background-color: #e0e7ff; /* indigo-100 */
-        }
-
         /* Added animation for modals */
         @keyframes fade-in-up {
             from {
@@ -76,33 +61,50 @@
 </head>
 <body class="bg-slate-100 font-sans antialiased">
 
-    <div id="app-container" class="flex h-screen">
-        <!-- Collapsible Sidebar -->
-        <nav id="sidebar" class="bg-slate-800 text-white flex flex-col transition-all duration-300 ease-in-out w-16 hover:w-56 overflow-hidden flex-shrink-0">
-            <div class="flex items-center justify-center h-16 border-b border-slate-700">
-                <span class="text-2xl">💰</span>
-            </div>
-            <ul class="flex flex-col py-4 space-y-2">
-                <li><button data-modal="settings" class="sidebar-item"><i class="fas fa-cog fa-fw w-6 text-center"></i><span class="ml-3">Settings & Balance</span></button></li>
-            </ul>
-        </nav>
+    <!-- This container holds the main app and is hidden until the user is authenticated -->
+    <div id="app-container" class="hidden h-screen">
+        <div class="flex h-full w-full">
+            <!-- Collapsible Sidebar -->
+            <nav id="sidebar" class="bg-slate-800 text-white flex flex-col justify-between transition-all duration-300 ease-in-out w-16 hover:w-56 overflow-hidden flex-shrink-0">
+                <div>
+                    <div class="flex items-center justify-center h-16 border-b border-slate-700">
+                        <span class="text-2xl">💰</span>
+                    </div>
+                    <ul class="flex flex-col py-4 space-y-2">
+                        <li><button data-modal="settings" class="sidebar-item"><i class="fas fa-cog fa-fw w-6 text-center"></i><span class="ml-3">Settings & Balance</span></button></li>
+                    </ul>
+                </div>
+                <!-- Sign Out Button -->
+                <div class="py-4">
+                     <button id="sign-out-button" class="sidebar-item"><i class="fas fa-sign-out-alt fa-fw w-6 text-center"></i><span class="ml-3">Sign Out</span></button>
+                </div>
+            </nav>
 
-        <!-- Main Content -->
-        <main class="flex-1 flex flex-col">
-            <!-- Header -->
-            <header class="bg-white shadow-md p-4 flex justify-between items-center flex-shrink-0">
-                <h1 class="text-xl font-bold text-slate-700">Spending Forecaster</h1>
-            </header>
+            <!-- Main Content -->
+            <main class="flex-1 flex flex-col">
+                <!-- Header -->
+                <header class="bg-white shadow-md p-4 flex justify-between items-center flex-shrink-0">
+                    <h1 class="text-xl font-bold text-slate-700">Spending Forecaster</h1>
+                </header>
 
-            <!-- Content Area -->
-            <div class="p-4 md:p-6 lg:p-8 overflow-y-auto">
-                <!-- Key Figures -->
-                <section id="key-figures" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></section>
-                
-                <!-- Data Cards -->
-                <section id="data-cards" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></section>
-            </div>
-        </main>
+                <!-- Content Area -->
+                <div class="p-4 md:p-6 lg:p-8 overflow-y-auto">
+                    <!-- Key Figures -->
+                    <section id="key-figures" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></section>
+                    
+                    <!-- Data Cards -->
+                    <section id="data-cards" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></section>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- This container holds the FirebaseUI login widget -->
+    <div id="auth-container" class="flex justify-center items-center h-screen">
+        <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-xl">
+            <h1 class="text-2xl font-bold text-center text-slate-700 mb-6">Welcome to the Forecaster</h1>
+            <div id="firebaseui-auth-container"></div>
+        </div>
     </div>
 
     <!-- Modals (Overlay & Content) -->
@@ -114,6 +116,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- FirebaseUI JS -->
+    <script src="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.js"></script>
     
     <!-- App Script -->
     <script>
@@ -151,6 +155,9 @@
             let auth;
             let unsubFromFirestore = null;
             let isFirebaseConnected = false;
+
+            const appContainer = document.getElementById('app-container');
+            const authContainer = document.getElementById('auth-container');
 
             // --- FUNCTION DECLARATIONS ---
             const saveDataToLocalStorage = () => {
@@ -205,6 +212,9 @@
                         localStorage.removeItem('forecasterData');
                     }
                 }
+                // Show the main app if we are in local storage mode
+                appContainer.classList.remove('hidden');
+                authContainer.classList.add('hidden');
                 renderApp();
             };
 
@@ -266,7 +276,6 @@
 
             const renderKeyFigures = () => {
                 const container = document.getElementById('key-figures');
-                // Updated middle card with icons and smaller text
                 container.innerHTML = `
                     <div class="bg-white p-4 rounded-lg shadow">
                         <h3 class="text-slate-500 font-semibold text-sm md:text-base">Projected Balance</h3>
@@ -512,6 +521,12 @@
                 }
             });
 
+            document.getElementById('sign-out-button').addEventListener('click', () => {
+                if (auth) {
+                    auth.signOut();
+                }
+            });
+
             document.getElementById('data-cards').addEventListener('click', e => {
                 const target = e.target.closest('button');
                 if (!target) return;
@@ -632,7 +647,6 @@
                          if (!isFirebaseConnected) renderApp();
                          showNotification('Balance reconciled.', 'success');
                     }
-                    // Re-render the settings modal to show the new adjustment
                     openModal('settings');
                 }
             });
@@ -663,7 +677,7 @@
                 }
             });
 
-            // --- INITIALIZATION ---
+            // --- INITIALIZATION & AUTHENTICATION ---
             try {
                 if (firebaseConfig.apiKey === "YOUR_API_KEY") {
                     throw new Error("Firebase config is not set. Using local storage.");
@@ -672,17 +686,38 @@
                 auth = firebase.auth();
                 db = firebase.firestore();
                 
+                const ui = new firebaseui.auth.AuthUI(auth);
+
                 auth.onAuthStateChanged(user => {
                     if (user) {
-                        console.log("User signed in anonymously:", user.uid);
+                        // User is signed in.
+                        appContainer.classList.remove('hidden');
+                        authContainer.classList.add('hidden');
+                        
                         state.userId = user.uid;
                         isFirebaseConnected = true;
                         loadDataFromFirebase();
                     } else {
-                        auth.signInAnonymously().catch(error => {
-                            console.error("Anonymous sign-in failed:", error);
-                            showNotification("Cloud sync disabled. Using local session storage.", "error");
-                            loadDataFromLocalStorage();
+                        // User is signed out.
+                        appContainer.classList.add('hidden');
+                        authContainer.classList.remove('hidden');
+                        
+                        if (unsubFromFirestore) unsubFromFirestore(); // Stop listening to old data
+
+                        ui.start('#firebaseui-auth-container', {
+                            signInOptions: [
+                                firebase.auth.EmailAuthProvider.PROVIDER_ID,
+                                firebase.auth.GoogleAuthProvider.PROVIDER_ID
+                            ],
+                            signInSuccessUrl: '#', // Stay on the same page.
+                            callbacks: {
+                                signInSuccessWithAuthResult: function(authResult, redirectUrl) {
+                                    // User successfully signed in.
+                                    // Return type determines whether we continue the redirect automatically
+                                    // or whether we leave that to developer to handle.
+                                    return false;
+                                }
+                            }
                         });
                     }
                 });
