@@ -239,7 +239,7 @@
                         console.error("Error listening to Firestore:", error);
                         showNotification("Real-time sync failed. Falling back to local storage.", "error");
                         isFirebaseConnected = false;
-                        loadDataFromLocalStorage();
+                        // Don't call loadDataFromLocalStorage here, as it would bypass auth on a DB error
                     });
             };
 
@@ -678,53 +678,56 @@
             });
 
             // --- INITIALIZATION & AUTHENTICATION ---
-            try {
-                if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-                    throw new Error("Firebase config is not set. Using local storage.");
-                }
-                firebase.initializeApp(firebaseConfig);
-                auth = firebase.auth();
-                db = firebase.firestore();
-                
-                const ui = new firebaseui.auth.AuthUI(auth);
-
-                auth.onAuthStateChanged(user => {
-                    if (user) {
-                        // User is signed in.
-                        appContainer.classList.remove('hidden');
-                        authContainer.classList.add('hidden');
-                        
-                        state.userId = user.uid;
-                        isFirebaseConnected = true;
-                        loadDataFromFirebase();
-                    } else {
-                        // User is signed out.
-                        appContainer.classList.add('hidden');
-                        authContainer.classList.remove('hidden');
-                        
-                        if (unsubFromFirestore) unsubFromFirestore(); // Stop listening to old data
-
-                        ui.start('#firebaseui-auth-container', {
-                            signInOptions: [
-                                firebase.auth.EmailAuthProvider.PROVIDER_ID,
-                                firebase.auth.GoogleAuthProvider.PROVIDER_ID
-                            ],
-                            signInSuccessUrl: '#', // Stay on the same page.
-                            callbacks: {
-                                signInSuccessWithAuthResult: function(authResult, redirectUrl) {
-                                    // User successfully signed in.
-                                    // Return type determines whether we continue the redirect automatically
-                                    // or whether we leave that to developer to handle.
-                                    return false;
-                                }
-                            }
-                        });
-                    }
-                });
-
-            } catch (error) {
-                console.error("Firebase initialization failed:", error.message);
+            // **FIX:** Changed logic to correctly handle preview mode vs. real authentication errors.
+            if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                // This is for our preview environment.
+                console.log("Firebase config not set. Running in local preview mode.");
                 loadDataFromLocalStorage();
+            } else {
+                // This is for the live, published app with real credentials.
+                try {
+                    firebase.initializeApp(firebaseConfig);
+                    auth = firebase.auth();
+                    db = firebase.firestore();
+                    
+                    const ui = new firebaseui.auth.AuthUI(auth);
+
+                    auth.onAuthStateChanged(user => {
+                        if (user) {
+                            // User is signed in.
+                            appContainer.classList.remove('hidden');
+                            authContainer.classList.add('hidden');
+                            
+                            state.userId = user.uid;
+                            isFirebaseConnected = true;
+                            loadDataFromFirebase();
+                        } else {
+                            // User is signed out.
+                            appContainer.classList.add('hidden');
+                            authContainer.classList.remove('hidden');
+                            
+                            if (unsubFromFirestore) unsubFromFirestore();
+
+                            ui.start('#firebaseui-auth-container', {
+                                signInOptions: [
+                                    firebase.auth.EmailAuthProvider.PROVIDER_ID,
+                                    firebase.auth.GoogleAuthProvider.PROVIDER_ID
+                                ],
+                                signInSuccessUrl: '#',
+                                callbacks: {
+                                    signInSuccessWithAuthResult: function(authResult, redirectUrl) {
+                                        return false;
+                                    }
+                                }
+                            });
+                        }
+                    });
+
+                } catch (error) {
+                    console.error("Firebase initialization failed:", error);
+                    const authUiContainer = document.getElementById('firebaseui-auth-container');
+                    authUiContainer.innerHTML = `<p class="text-red-500 text-center">Error: Could not connect to the authentication service. Please check your Firebase project setup (are Authentication and Firestore enabled?) and your network connection.</p>`;
+                }
             }
         });
     </script>
