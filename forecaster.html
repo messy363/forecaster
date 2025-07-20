@@ -85,6 +85,7 @@
                 <!-- Header -->
                 <header class="bg-white shadow-md p-4 flex justify-between items-center flex-shrink-0">
                     <h1 class="text-xl font-bold text-slate-700">Spending Forecaster</h1>
+                    <span id="version-display-main" class="text-xs text-slate-400"></span>
                 </header>
 
                 <!-- Content Area -->
@@ -104,6 +105,7 @@
         <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-xl">
             <h1 class="text-2xl font-bold text-center text-slate-700 mb-6">Welcome to the Forecaster</h1>
             <div id="firebaseui-auth-container"></div>
+            <p id="version-display-login" class="text-center text-xs text-slate-400 mt-6"></p>
         </div>
     </div>
 
@@ -122,6 +124,11 @@
     <!-- App Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // --- APP VERSION ---
+            const version = "v1.1";
+            document.getElementById('version-display-main').textContent = version;
+            document.getElementById('version-display-login').textContent = version;
+
             // --- FIREBASE CONFIGURATION ---
             const firebaseConfig = {
               apiKey: "YOUR_API_KEY",
@@ -212,9 +219,6 @@
                         localStorage.removeItem('forecasterData');
                     }
                 }
-                // Show the main app if we are in local storage mode
-                appContainer.classList.remove('hidden');
-                authContainer.classList.add('hidden');
                 renderApp();
             };
 
@@ -239,7 +243,6 @@
                         console.error("Error listening to Firestore:", error);
                         showNotification("Real-time sync failed. Falling back to local storage.", "error");
                         isFirebaseConnected = false;
-                        // Don't call loadDataFromLocalStorage here, as it would bypass auth on a DB error
                     });
             };
 
@@ -678,13 +681,10 @@
             });
 
             // --- INITIALIZATION & AUTHENTICATION ---
-            // **FIX:** Changed logic to correctly handle preview mode vs. real authentication errors.
             if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-                // This is for our preview environment.
                 console.log("Firebase config not set. Running in local preview mode.");
                 loadDataFromLocalStorage();
             } else {
-                // This is for the live, published app with real credentials.
                 try {
                     firebase.initializeApp(firebaseConfig);
                     auth = firebase.auth();
@@ -694,7 +694,6 @@
 
                     auth.onAuthStateChanged(user => {
                         if (user) {
-                            // User is signed in.
                             appContainer.classList.remove('hidden');
                             authContainer.classList.add('hidden');
                             
@@ -702,7 +701,6 @@
                             isFirebaseConnected = true;
                             loadDataFromFirebase();
                         } else {
-                            // User is signed out.
                             appContainer.classList.add('hidden');
                             authContainer.classList.remove('hidden');
                             
@@ -710,7 +708,6 @@
 
                             ui.start('#firebaseui-auth-container', {
                                 signInOptions: [
-                                    firebase.auth.EmailAuthProvider.PROVIDER_ID,
                                     firebase.auth.GoogleAuthProvider.PROVIDER_ID
                                 ],
                                 signInSuccessUrl: '#',
