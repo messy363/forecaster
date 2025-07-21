@@ -55,6 +55,19 @@
         .animate-fade-in-up {
             animation: fade-in-up 0.3s ease-out forwards;
         }
+
+        /* Tab styling */
+        .tab-button {
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            color: #475569; /* slate-600 */
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-button.active, .tab-button:hover {
+            color: #1e293b; /* slate-800 */
+            border-bottom-color: #3b82f6; /* blue-500 */
+        }
     </style>
 </head>
 <body class="bg-slate-100 font-sans antialiased">
@@ -157,7 +170,7 @@
     <!-- App Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const APP_VERSION = 'v2.3.1';
+            const APP_VERSION = 'v2.4.0';
             const IS_PREVIEW_MODE = window.self !== window.top;
 
             // --- DOM ELEMENTS ---
@@ -297,7 +310,7 @@
 
             const calculateRemainingBudget = () => {
                 return (state.outgoings || []).reduce((sum, out) => {
-                    if (out.finalized) return sum;
+                    if (isOutgoingCompleted(out)) return sum;
 
                     const totalSpent = getSum(out.transactions, 'amount');
                     let remainingBudgetForOutgoing = 0;
@@ -358,65 +371,89 @@
                 `;
             };
 
+            const isOutgoingCompleted = (out) => {
+                if (out.type === 'itemized') {
+                    return (out.items || []).every(item => item.finalized);
+                }
+                return !!out.finalized;
+            };
+
+            const isIncomingCompleted = (inc) => {
+                return inc.actual > 0;
+            };
+
             const renderDataCards = () => {
                 const container = document.getElementById('data-cards');
-                const outgoingsHtml = (state.outgoings || []).map(out => {
-                    const spent = getSum(out.transactions, 'amount');
-                    let budget = 0;
+                
+                // Filter items
+                const activeOutgoings = (state.outgoings || []).filter(o => !isOutgoingCompleted(o));
+                const completedOutgoings = (state.outgoings || []).filter(isOutgoingCompleted);
+                const activeIncomings = (state.incomings || []).filter(i => !isIncomingCompleted(i));
+                const completedIncomings = (state.incomings || []).filter(isIncomingCompleted);
 
-                    if (out.type === 'itemized') {
-                        budget = (out.items || []).reduce((sum, item) => {
-                            if (item.finalized) {
-                                const spentOnItem = (out.transactions || [])
-                                    .filter(t => t.itemId === item.id)
-                                    .reduce((itemSum, t) => itemSum + t.amount, 0);
-                                return sum + spentOnItem;
-                            }
-                            return sum + (item.budget || 0);
-                        }, 0);
-                    } else {
-                        if (out.finalized) {
-                            budget = spent;
+                const generateOutgoingsHtml = (outgoings) => {
+                    if (outgoings.length === 0) return '<p class="text-slate-500 p-4">Nothing here.</p>';
+                    return outgoings.map(out => {
+                        const spent = getSum(out.transactions, 'amount');
+                        let budget = 0;
+
+                        if (out.type === 'itemized') {
+                            budget = (out.items || []).reduce((sum, item) => {
+                                if (item.finalized) {
+                                    const spentOnItem = (out.transactions || [])
+                                        .filter(t => t.itemId === item.id)
+                                        .reduce((itemSum, t) => itemSum + t.amount, 0);
+                                    return sum + spentOnItem;
+                                }
+                                return sum + (item.budget || 0);
+                            }, 0);
                         } else {
-                            budget = out.budget || 0;
+                            if (out.finalized) {
+                                budget = spent;
+                            } else {
+                                budget = out.budget || 0;
+                            }
                         }
-                    }
 
-                    const percentage = budget > 0 ? (spent / budget) * 100 : 0;
-                    let progressBarColor = 'bg-green-500';
-                    if (percentage > 90) progressBarColor = 'bg-red-500';
-                    else if (percentage > 75) progressBarColor = 'bg-yellow-500';
+                        const percentage = budget > 0 ? (spent / budget) * 100 : 0;
+                        let progressBarColor = 'bg-green-500';
+                        if (percentage > 90) progressBarColor = 'bg-red-500';
+                        else if (percentage > 75) progressBarColor = 'bg-yellow-500';
 
-                    return `
-                        <li class="group flex items-center justify-between py-3 border-b border-slate-200 last:border-b-0">
-                            <div class="flex-1 pr-4">
-                                <div class="flex items-center">
-                                    <span class="font-medium text-slate-700">${out.name}</span>
-                                    ${out.type === 'itemized' ? '<i class="fas fa-list-ul text-slate-400 ml-2 text-xs"></i>' : ''}
-                                    <button data-action="edit-outgoing" data-id="${out.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
+                        return `
+                            <li class="group flex items-center justify-between py-3 px-4 border-b border-slate-200 last:border-b-0">
+                                <div class="flex-1 pr-4">
+                                    <div class="flex items-center">
+                                        <span class="font-medium text-slate-700">${out.name}</span>
+                                        ${out.type === 'itemized' ? '<i class="fas fa-list-ul text-slate-400 ml-2 text-xs"></i>' : ''}
+                                        <button data-action="edit-outgoing" data-id="${out.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
+                                    </div>
+                                    <p class="text-sm text-slate-500">${formatCurrency(spent)} / ${formatCurrency(budget)}</p>
+                                    <div class="w-full bg-slate-200 rounded-full h-2.5 mt-1.5">
+                                        <div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
+                                    </div>
                                 </div>
-                                <p class="text-sm text-slate-500">${formatCurrency(spent)} / ${formatCurrency(budget)}</p>
-                                <div class="w-full bg-slate-200 rounded-full h-2.5 mt-1.5">
-                                    <div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
-                                </div>
+                                <button data-action="manage-transactions" data-id="${out.id}" class="text-blue-600 font-semibold text-sm hover:text-blue-800 flex-shrink-0">Spend</button>
+                            </li>
+                        `;
+                    }).join('');
+                };
+
+                const generateIncomingsHtml = (incomings) => {
+                    if (incomings.length === 0) return '<p class="text-slate-500 p-4">Nothing here.</p>';
+                    return incomings.map(inc => `
+                        <li class="group flex items-center justify-between py-3 px-4 border-b border-slate-200 last:border-b-0">
+                            <div>
+                                <span class="font-medium text-slate-700">${inc.name}</span>
+                                <button data-action="edit-income" data-id="${inc.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
                             </div>
-                            <button data-action="manage-transactions" data-id="${out.id}" class="text-blue-600 font-semibold text-sm hover:text-blue-800 flex-shrink-0">Spend</button>
+                            <div class="text-right">
+                                <p class="text-sm text-slate-500">Forecast: ${formatCurrency(inc.forecast)}</p>
+                                <p class="text-sm font-semibold ${inc.actual > 0 ? 'text-green-600' : 'text-slate-600'}">Actual: ${formatCurrency(inc.actual)}</p>
+                            </div>
                         </li>
-                    `;
-                }).join('');
-
-                const incomingsHtml = (state.incomings || []).map(inc => `
-                    <li class="group flex items-center justify-between py-3 border-b border-slate-200 last:border-b-0">
-                        <div>
-                            <span class="font-medium text-slate-700">${inc.name}</span>
-                            <button data-action="edit-income" data-id="${inc.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-sm text-slate-500">Forecast: ${formatCurrency(inc.forecast)}</p>
-                            <p class="text-sm font-semibold ${inc.actual > 0 ? 'text-green-600' : 'text-slate-600'}">Actual: ${formatCurrency(inc.actual)}</p>
-                        </div>
-                    </li>
-                `).join('');
+                    `).join('');
+                };
 
                 container.innerHTML = `
                     <div class="bg-white p-6 rounded-lg shadow">
@@ -424,14 +461,28 @@
                             <h3 class="text-lg font-bold text-slate-800">Outgoings</h3>
                             <button data-modal="add-outgoing" class="bg-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-lg text-sm hover:bg-slate-300 transition-colors">+ Add</button>
                         </div>
-                        <ul class="space-y-2">${outgoingsHtml || '<p class="text-slate-500">No outgoing budgets added yet.</p>'}</ul>
+                        <div class="border-b border-slate-200">
+                            <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                                <button class="tab-button active" data-tab="outgoings-active">Active</button>
+                                <button class="tab-button" data-tab="outgoings-completed">Completed</button>
+                            </nav>
+                        </div>
+                        <ul id="outgoings-active-list" class="space-y-2">${generateOutgoingsHtml(activeOutgoings)}</ul>
+                        <ul id="outgoings-completed-list" class="hidden space-y-2">${generateOutgoingsHtml(completedOutgoings)}</ul>
                     </div>
                     <div class="bg-white p-6 rounded-lg shadow">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-bold text-slate-800">Incomings</h3>
                             <button data-modal="add-income" class="bg-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-lg text-sm hover:bg-slate-300 transition-colors">+ Add</button>
                         </div>
-                        <ul class="space-y-2">${incomingsHtml || '<p class="text-slate-500">No incoming items added yet.</p>'}</ul>
+                        <div class="border-b border-slate-200">
+                            <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                                <button class="tab-button active" data-tab="incomings-active">Active</button>
+                                <button class="tab-button" data-tab="incomings-completed">Completed</button>
+                            </nav>
+                        </div>
+                        <ul id="incomings-active-list" class="space-y-2">${generateIncomingsHtml(activeIncomings)}</ul>
+                        <ul id="incomings-completed-list" class="hidden space-y-2">${generateIncomingsHtml(completedIncomings)}</ul>
                     </div>
                 `;
             };
@@ -643,13 +694,15 @@
                     const activeOutgoing = state.outgoings.find(o => o.id === data);
                     if (activeOutgoing && activeOutgoing.type !== 'itemized') {
                         const modalHeaderActions = modalContainer.querySelector('#modal-header-actions');
-                        const lockIcon = activeOutgoing.finalized ? 'fa-lock' : 'fa-unlock';
-                        const lockColor = activeOutgoing.finalized ? 'text-slate-500' : 'text-blue-500';
-                        modalHeaderActions.innerHTML = `
-                            <button type="button" data-action="toggle-finalize-simple" class="${lockColor} hover:opacity-75 text-lg">
-                                <i class="fas ${lockIcon}"></i>
-                            </button>
-                        `;
+                        if (modalHeaderActions) {
+                            const lockIcon = activeOutgoing.finalized ? 'fa-lock' : 'fa-unlock';
+                            const lockColor = activeOutgoing.finalized ? 'text-slate-500' : 'text-blue-500';
+                            modalHeaderActions.innerHTML = `
+                                <button type="button" data-action="toggle-finalize-simple" class="${lockColor} hover:opacity-75 text-lg">
+                                    <i class="fas ${lockIcon}"></i>
+                                </button>
+                            `;
+                        }
                     }
                 }
             };
@@ -793,11 +846,19 @@
                 const target = e.target.closest('button');
                 if (!target) return;
 
-                const { action, modal, id } = target.dataset;
-                if(modal) {
+                const { action, modal, id, tab } = target.dataset;
+                if (modal) {
                      openModal(modal);
                 } else if (action) {
                     openModal(action, id);
+                } else if (tab) {
+                    const [card, tabName] = tab.split('-');
+                    const buttons = document.querySelectorAll(`button[data-tab^="${card}"]`);
+                    const lists = document.querySelectorAll(`ul[id^="${card}"]`);
+                    buttons.forEach(b => b.classList.remove('active'));
+                    lists.forEach(l => l.classList.add('hidden'));
+                    target.classList.add('active');
+                    document.getElementById(`${tab}-list`).classList.remove('hidden');
                 }
             });
 
@@ -899,7 +960,7 @@
                             const budget = parseFloat(document.getElementById('outgoingBudget').value);
                             if (isNaN(budget)) return showNotification('Please enter a valid budget.', 'error');
                             newOutgoing.budget = budget;
-                            newOutgoing.finalized = false; // Default for new simple budgets
+                            newOutgoing.finalized = false;
                         } else {
                             if (tempBudgetItems.length === 0) return showNotification('Please add at least one budget item.', 'error');
                             newOutgoing.items = tempBudgetItems;
