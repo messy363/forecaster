@@ -59,8 +59,8 @@
 </head>
 <body class="bg-slate-100 font-sans antialiased">
 
-    <!-- This container holds the main app and is hidden until the user is authenticated -->
-    <div id="app-container" class="hidden h-screen">
+    <!-- This container holds the main app -->
+    <div id="app-container" class="h-screen">
         <div class="flex h-full w-full">
             <!-- Collapsible Sidebar -->
             <nav id="sidebar" class="bg-slate-800 text-white flex flex-col justify-between transition-all duration-300 ease-in-out w-16 hover:w-56 overflow-hidden flex-shrink-0">
@@ -106,7 +106,7 @@
                 <p id="env-mode" class="text-sm text-indigo-500 font-medium mt-2"></p>
             </div>
             <div id="auth-actions">
-                <button id="login-btn" class="hidden w-full px-4 py-3 text-base font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
+                <button id="login-btn" class="w-full px-4 py-3 text-base font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
                     <i class="fab fa-google mr-2"></i> Sign in with Google
                 </button>
                 <div id="auth-error" class="mt-4 text-sm text-red-600"></div>
@@ -120,7 +120,7 @@
     </div>
 
     <!-- Modals (Overlay & Content) -->
-    <div id="modal-container" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+    <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
         <!-- Modal content will be injected here by JavaScript -->
     </div>
     
@@ -132,7 +132,7 @@
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         // --- APP VERSION ---
-        const version = "v2.0";
+        const version = "v2.2";
         document.getElementById('version-display-main').textContent = version;
         document.getElementById('version-display-login').textContent = version;
 
@@ -163,12 +163,35 @@
         const loader = document.getElementById('loader');
         const envModeEl = document.getElementById('env-mode');
         const authErrorEl = document.getElementById('auth-error');
+        const modalContainer = document.getElementById('modal-container');
 
         // --- FIREBASE VARIABLES ---
         let app;
         let auth;
         let db;
         let unsubFromFirestore = null;
+
+        // --- UI STATE MANAGEMENT ---
+        function setUIState(mode) {
+            console.log(`Setting UI state to: ${mode}`);
+            if (mode === 'loading') {
+                authContainer.style.display = 'flex';
+                appContainer.style.display = 'none';
+                loader.style.display = 'flex';
+                loginBtn.style.display = 'none';
+                authErrorEl.textContent = '';
+            } else if (mode === 'login') {
+                authContainer.style.display = 'flex';
+                appContainer.style.display = 'none';
+                loader.style.display = 'none';
+                loginBtn.style.display = 'block';
+            } else if (mode === 'app') {
+                authContainer.style.display = 'none';
+                appContainer.style.display = 'block';
+            }
+            // Hide modal regardless of state change
+            modalContainer.style.display = 'none';
+        }
 
         // --- FUNCTION DECLARATIONS (CORE APP LOGIC) ---
         const saveData = async () => {
@@ -307,9 +330,7 @@
                 </div>
             `;
         };
-            
-        const modalContainer = document.getElementById('modal-container');
-            
+                    
         const openModal = (modalType, data = null) => {
             let content = '';
             const modalShell = (title, body, footer) => `
@@ -435,12 +456,11 @@
                 }
             }
             
-            modalContainer.innerHTML = content;
-            modalContainer.classList.remove('hidden');
+            modalContainer.style.display = 'flex';
         };
             
         const closeModal = () => {
-            modalContainer.classList.add('hidden');
+            modalContainer.style.display = 'none';
             modalContainer.innerHTML = '';
             state.activeOutgoingId = null;
         };
@@ -518,7 +538,7 @@
                         state.outgoings.push({ id: crypto.randomUUID(), name, budget: parseFloat(budget), transactions: [] });
                     }
                     saveData();
-                    if (!isFirebaseConnected) renderApp();
+                    renderApp();
                     closeModal();
                     showNotification('Outgoing saved.', 'success');
                     break;
@@ -540,7 +560,7 @@
                         state.incomings.push({ id: crypto.randomUUID(), name, forecast: parseFloat(forecast), actual: parseFloat(actual) || 0 });
                     }
                     saveData();
-                    if (!isFirebaseConnected) renderApp();
+                    renderApp();
                     closeModal();
                     showNotification('Income saved.', 'success');
                     break;
@@ -556,7 +576,7 @@
                         state.incomings = state.incomings.filter(i => i.id !== id);
                     }
                     saveData();
-                    if (!isFirebaseConnected) renderApp();
+                    renderApp();
                     closeModal();
                     showNotification('Item deleted.', 'success');
                     break;
@@ -567,7 +587,7 @@
                     if (outgoing && transactionId) {
                         outgoing.transactions = outgoing.transactions.filter(t => t.id !== transactionId);
                         saveData();
-                        if (!isFirebaseConnected) renderApp();
+                        renderApp();
                         openModal('manage-transactions', outgoingId);
                         showNotification('Transaction deleted.', 'success');
                     }
@@ -591,7 +611,7 @@
                         date: new Date().toISOString().split('T')[0]
                      });
                      saveData();
-                     if (!isFirebaseConnected) renderApp();
+                     renderApp();
                      showNotification('Balance reconciled.', 'success');
                 }
                 openModal('settings');
@@ -610,7 +630,7 @@
                     if (!outgoing.transactions) outgoing.transactions = [];
                     outgoing.transactions.push({id: crypto.randomUUID(), desc, amount: parseFloat(amount)});
                     saveData();
-                    if (!isFirebaseConnected) renderApp();
+                    renderApp();
                     openModal('manage-transactions', state.activeOutgoingId);
                 }
             }
@@ -620,86 +640,78 @@
             if (e.target.id === 'initialBalanceInput') {
                 state.initialBalance = parseFloat(e.target.value) || 0;
                 saveData();
-                if (!isFirebaseConnected) renderApp();
+                renderApp();
             }
         });
 
         // --- AUTHENTICATION & INITIALIZATION LOGIC ---
         async function initialize() {
-            try {
-                // This is the core of the solution.
-                // The '__firebase_config' variable is automatically provided by the preview environment.
-                if (typeof __firebase_config !== 'undefined') {
-                    // --- PREVIEW MODE ---
-                    envModeEl.textContent = 'Running in Preview Mode';
-                    console.log("Preview Mode: Using injected Firebase config.");
-                    const firebaseConfig = JSON.parse(__firebase_config);
-                    app = initializeApp(firebaseConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
-                    
-                    console.log("Preview Mode: Attempting to sign in with provided token...");
+            setUIState('loading');
+            // This special variable is provided by the preview environment
+            const isPreview = typeof __firebase_config !== 'undefined';
+
+            if (isPreview) {
+                // --- PREVIEW MODE ---
+                envModeEl.textContent = 'Running in Preview Mode';
+                console.log("Preview Mode: Using injected Firebase config.");
+                const firebaseConfig = JSON.parse(__firebase_config);
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                try {
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
                         await signInAnonymously(auth);
                     }
                     
-                    // In preview, we are now "logged in" so we can proceed
                     state.userId = auth.currentUser.uid;
-                    isFirebaseConnected = true;
-                    appContainer.classList.remove('hidden');
-                    authContainer.classList.add('hidden');
-                    signOutButton.style.display = 'flex';
+                    setUIState('app');
                     loadDataFromFirebase();
 
-                } else {
-                    // --- LIVE MODE ---
-                    envModeEl.textContent = 'Running in Live Mode';
-                    console.log("Live Mode: Attempting to load config from config.js");
-                    
-                    // Dynamically import your config.js file.
+                } catch (error) {
+                    console.error("Preview Mode Auth Error:", error);
+                    setUIState('login');
+                    authErrorEl.textContent = `Preview Auth Failed: ${error.message}`;
+                }
+
+            } else {
+                // --- LIVE MODE ---
+                envModeEl.textContent = 'Running in Live Mode';
+                console.log("Live Mode: Attempting to load config from config.js");
+                
+                try {
                     const { firebaseConfig } = await import('./config.js');
-                    
-                    if (!firebaseConfig) {
-                        throw new Error("firebaseConfig not found in config.js.");
-                    }
+                    if (!firebaseConfig) throw new Error("firebaseConfig not found in config.js.");
 
                     app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
                     console.log("Live Mode: Firebase initialized with config.js.");
                     setupAuthObserver();
+
+                } catch (error) {
+                    console.error("Initialization Error:", error);
+                    setUIState('login');
+                    authErrorEl.textContent = `Initialization Failed: ${error.message}. Make sure config.js exists and is correct.`;
                 }
-            } catch (error) {
-                console.error("Initialization Error:", error);
-                loader.classList.add('hidden');
-                authErrorEl.textContent = `Initialization Failed: ${error.message}. Make sure config.js exists and is correct.`;
             }
         }
 
         function setupAuthObserver() {
             onAuthStateChanged(auth, user => {
-                loader.classList.add('hidden');
-
                 if (user) {
                     // User is signed in
-                    console.log("Auth State Changed: User is signed in.", user.uid);
+                    console.log("Auth State: Signed In. User:", user.uid);
                     state.userId = user.uid;
-                    isFirebaseConnected = true;
-                    appContainer.classList.remove('hidden');
-                    authContainer.classList.add('hidden');
-                    signOutButton.style.display = 'flex';
+                    setUIState('app');
                     loadDataFromFirebase();
                 } else {
                     // User is signed out
-                    console.log("Auth State Changed: User is signed out.");
+                    console.log("Auth State: Signed Out.");
                     if (unsubFromFirestore) unsubFromFirestore();
-                    
-                    appContainer.classList.add('hidden');
-                    authContainer.classList.remove('hidden');
-                    signOutButton.style.display = 'none';
-                    loginBtn.classList.remove('hidden');
+                    setUIState('login');
                 }
             });
         }
