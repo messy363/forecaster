@@ -41,23 +41,6 @@
             line-height: 1.1;
         }
 
-        /* Custom file input style */
-        .custom-file-input::file-selector-button {
-            margin-right: 1rem;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            border: 0;
-            font-size: 0.875rem;
-            font-weight: 600;
-            background-color: #eef2ff; /* indigo-50 */
-            color: #4338ca; /* indigo-700 */
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .custom-file-input::file-selector-button:hover {
-            background-color: #e0e7ff; /* indigo-100 */
-        }
-
         /* Added animation for modals */
         @keyframes fade-in-up {
             from {
@@ -76,33 +59,86 @@
 </head>
 <body class="bg-slate-100 font-sans antialiased">
 
-    <div id="app-container" class="flex h-screen">
-        <!-- Collapsible Sidebar -->
-        <nav id="sidebar" class="bg-slate-800 text-white flex flex-col transition-all duration-300 ease-in-out w-16 hover:w-56 overflow-hidden flex-shrink-0">
-            <div class="flex items-center justify-center h-16 border-b border-slate-700">
-                <span class="text-2xl">💰</span>
+    <!-- Authentication Screen -->
+    <div id="auth-screen" class="hidden h-screen w-screen flex flex-col justify-center items-center bg-slate-200 p-4">
+        <div class="w-full max-w-md">
+            <div class="bg-white shadow-lg rounded-lg p-8">
+                <div class="text-center mb-6">
+                    <span class="text-4xl">💰</span>
+                    <h1 class="text-2xl font-bold text-slate-800 mt-2">Spending Forecaster</h1>
+                </div>
+                <!-- Login Form -->
+                <form id="login-form" class="">
+                    <h2 class="text-xl font-semibold text-center text-slate-700 mb-4">Login</h2>
+                    <div class="mb-4">
+                        <label for="login-email" class="block text-slate-600 mb-1">Email</label>
+                        <input type="email" id="login-email" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" autocomplete="email">
+                    </div>
+                    <div class="mb-6">
+                        <label for="login-password" class="block text-slate-600 mb-1">Password</label>
+                        <input type="password" id="login-password" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">Login</button>
+                </form>
+                <!-- Sign-up Form -->
+                <form id="signup-form" class="hidden">
+                    <h2 class="text-xl font-semibold text-center text-slate-700 mb-4">Create Account</h2>
+                    <div class="mb-4">
+                        <label for="signup-email" class="block text-slate-600 mb-1">Email</label>
+                        <input type="email" id="signup-email" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" autocomplete="email">
+                    </div>
+                    <div class="mb-6">
+                        <label for="signup-password" class="block text-slate-600 mb-1">Password</label>
+                        <input type="password" id="signup-password" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors">Sign Up</button>
+                </form>
+                <p id="auth-error" class="text-red-500 text-sm text-center mt-4 h-4"></p>
             </div>
-            <ul class="flex flex-col py-4 space-y-2">
-                <li><button data-modal="settings" class="sidebar-item"><i class="fas fa-cog fa-fw w-6 text-center"></i><span class="ml-3">Settings & Balance</span></button></li>
-            </ul>
-        </nav>
-
-        <!-- Main Content -->
-        <main class="flex-1 flex flex-col">
-            <!-- Header -->
-            <header class="bg-white shadow-md p-4 flex justify-between items-center flex-shrink-0">
-                <h1 class="text-xl font-bold text-slate-700">Spending Forecaster</h1>
-            </header>
-
-            <!-- Content Area -->
-            <div class="p-4 md:p-6 lg:p-8 overflow-y-auto">
-                <!-- Key Figures -->
-                <section id="key-figures" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></section>
-                
-                <!-- Data Cards -->
-                <section id="data-cards" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></section>
+            <div class="text-center mt-4">
+                <a href="#" id="toggle-auth" class="text-sm text-blue-600 hover:underline">Need an account? Sign up</a>
             </div>
-        </main>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container" class="hidden h-screen">
+        <div class="flex h-full w-full">
+            <!-- Collapsible Sidebar -->
+            <nav id="sidebar" class="bg-slate-800 text-white flex flex-col transition-all duration-300 ease-in-out w-16 hover:w-56 overflow-hidden flex-shrink-0">
+                <div class="flex-1">
+                    <div class="flex items-center justify-center h-16 border-b border-slate-700">
+                        <span class="text-2xl">💰</span>
+                    </div>
+                    <ul class="flex flex-col py-4 space-y-2">
+                        <li><button data-modal="settings" class="sidebar-item"><i class="fas fa-cog fa-fw w-6 text-center"></i><span class="ml-3">Settings & Balance</span></button></li>
+                    </ul>
+                </div>
+                <div class="border-t border-slate-700">
+                    <button id="logout-button" class="sidebar-item"><i class="fas fa-sign-out-alt fa-fw w-6 text-center"></i><span class="ml-3">Logout</span></button>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="flex-1 flex flex-col">
+                <!-- Header -->
+                <header class="bg-white shadow-md p-4 flex justify-between items-center flex-shrink-0">
+                    <div class="flex items-baseline">
+                        <h1 class="text-xl font-bold text-slate-700">Spending Forecaster</h1>
+                        <span id="version-display" class="ml-3 text-xs font-medium text-slate-400"></span>
+                    </div>
+                </header>
+
+                <!-- Content Area -->
+                <div class="p-4 md:p-6 lg:p-8 overflow-y-auto flex-1">
+                    <!-- Key Figures -->
+                    <section id="key-figures" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></section>
+                    
+                    <!-- Data Cards -->
+                    <section id="data-cards" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></section>
+                </div>
+            </main>
+        </div>
     </div>
 
     <!-- Modals (Overlay & Content) -->
@@ -118,6 +154,8 @@
     <!-- App Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const APP_VERSION = 'v2.0.0';
+
             // --- FIREBASE CONFIGURATION ---
             const firebaseConfig = {
               apiKey: "YOUR_API_KEY",
@@ -128,19 +166,40 @@
               appId: "YOUR_APP_ID"
             };
 
+            // --- DOM ELEMENTS ---
+            const authScreen = document.getElementById('auth-screen');
+            const appContainer = document.getElementById('app-container');
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+            const toggleAuthLink = document.getElementById('toggle-auth');
+            const authError = document.getElementById('auth-error');
+            const logoutButton = document.getElementById('logout-button');
+
             // --- STATE MANAGEMENT ---
-            let state = {
+            const getInitialState = () => ({
                 incomings: [],
                 outgoings: [],
                 adjustments: [],
                 userId: null,
                 activeOutgoingId: null,
-            };
+            });
+            let state = getInitialState();
 
             let db;
             let auth;
             let unsubFromFirestore = null;
             let isFirebaseConnected = false;
+
+            // --- UI CONTROL ---
+            const showLoginScreen = () => {
+                authScreen.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+            };
+
+            const showApp = () => {
+                authScreen.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+            };
 
             // --- FUNCTION DECLARATIONS ---
             const saveDataToLocalStorage = () => {
@@ -175,6 +234,7 @@
             const renderApp = () => {
                 renderKeyFigures();
                 renderDataCards();
+                document.getElementById('version-display').textContent = APP_VERSION;
             };
 
             const loadDataFromLocalStorage = () => {
@@ -209,7 +269,7 @@
                             console.log("Real-time data loaded/updated from Firestore.");
                         } else {
                             console.log("No existing data for this user. Saving initial blank state.");
-                            saveDataToFirebase(); // Save a blank state for new users
+                            saveDataToFirebase();
                         }
                         renderApp();
                     }, error => {
@@ -223,6 +283,7 @@
             const getSum = (arr, prop) => (arr || []).reduce((sum, item) => sum + (Number(item[prop]) || 0), 0);
             
             const formatDateUK = (dateString) => {
+                if (!dateString) return '';
                 const date = new Date(dateString);
                 return new Intl.DateTimeFormat('en-GB').format(date);
             };
@@ -355,9 +416,9 @@
 
                 switch(modalType) {
                     case 'settings': {
-                        const adjustmentsLog = (state.adjustments || []).map(adj => `
+                        const adjustmentsLog = (state.adjustments || []).sort((a, b) => new Date(b.date) - new Date(a.date)).map(adj => `
                             <li class="flex justify-between text-sm py-1 border-b">
-                                <span>${adj.date}: ${adj.desc}</span>
+                                <span>${formatDateUK(adj.date)}: ${adj.desc}</span>
                                 <span class="font-medium ${adj.amount >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(adj.amount)}</span>
                             </li>`).join('');
                         const body = `
@@ -490,6 +551,50 @@
             
             // --- EVENT LISTENERS ---
             
+            logoutButton.addEventListener('click', () => {
+                auth.signOut();
+            });
+
+            toggleAuthLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                authError.textContent = '';
+                if (loginForm.classList.contains('hidden')) {
+                    // Switch to login
+                    loginForm.classList.remove('hidden');
+                    signupForm.classList.add('hidden');
+                    toggleAuthLink.textContent = 'Need an account? Sign up';
+                } else {
+                    // Switch to sign up
+                    loginForm.classList.add('hidden');
+                    signupForm.classList.remove('hidden');
+                    toggleAuthLink.textContent = 'Have an account? Login';
+                }
+            });
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                authError.textContent = '';
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                auth.signInWithEmailAndPassword(email, password)
+                    .catch(error => {
+                        console.error("Login failed:", error);
+                        authError.textContent = error.message;
+                    });
+            });
+
+            signupForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                authError.textContent = '';
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').value;
+                auth.createUserWithEmailAndPassword(email, password)
+                    .catch(error => {
+                        console.error("Sign up failed:", error);
+                        authError.textContent = error.message;
+                    });
+            });
+
             document.getElementById('sidebar').addEventListener('click', e => {
                 const button = e.target.closest('button[data-modal]');
                 if (button) {
@@ -648,24 +753,26 @@
                 firebase.initializeApp(firebaseConfig);
                 auth = firebase.auth();
                 db = firebase.firestore();
+                isFirebaseConnected = true;
                 
                 auth.onAuthStateChanged(user => {
                     if (user) {
-                        console.log("User signed in anonymously:", user.uid);
+                        console.log("User is signed in:", user.uid);
                         state.userId = user.uid;
-                        isFirebaseConnected = true;
+                        showApp();
                         loadDataFromFirebase();
                     } else {
-                        auth.signInAnonymously().catch(error => {
-                            console.error("Anonymous sign-in failed:", error);
-                            showNotification("Cloud sync disabled. Using local session storage.", "error");
-                            loadDataFromLocalStorage();
-                        });
+                        console.log("User is signed out.");
+                        if (unsubFromFirestore) unsubFromFirestore();
+                        state = getInitialState();
+                        showLoginScreen();
                     }
                 });
 
             } catch (error) {
                 console.error("Firebase initialization failed:", error.message);
+                showNotification("Running in offline preview mode.", "info");
+                showApp();
                 loadDataFromLocalStorage();
             }
         });
