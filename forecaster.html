@@ -151,20 +151,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     
+    <!-- Firebase Configuration (from external file) -->
+    <script src="config.js"></script>
+    
     <!-- App Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const APP_VERSION = 'v2.0.0';
-
-            // --- FIREBASE CONFIGURATION ---
-            const firebaseConfig = {
-              apiKey: "YOUR_API_KEY",
-              authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-              projectId: "YOUR_PROJECT_ID",
-              storageBucket: "YOUR_PROJECT_ID.appspot.com",
-              messagingSenderId: "YOUR_SENDER_ID",
-              appId: "YOUR_APP_ID"
-            };
+            const APP_VERSION = 'v2.1.2';
+            const IS_PREVIEW_MODE = window.self !== window.top;
 
             // --- DOM ELEMENTS ---
             const authScreen = document.getElementById('auth-screen');
@@ -552,7 +546,9 @@
             // --- EVENT LISTENERS ---
             
             logoutButton.addEventListener('click', () => {
-                auth.signOut();
+                if (isFirebaseConnected) {
+                    auth.signOut();
+                }
             });
 
             toggleAuthLink.addEventListener('click', (e) => {
@@ -746,34 +742,42 @@
             });
 
             // --- INITIALIZATION ---
-            try {
-                if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-                    throw new Error("Firebase config is not set. Using local storage.");
-                }
-                firebase.initializeApp(firebaseConfig);
-                auth = firebase.auth();
-                db = firebase.firestore();
-                isFirebaseConnected = true;
-                
-                auth.onAuthStateChanged(user => {
-                    if (user) {
-                        console.log("User is signed in:", user.uid);
-                        state.userId = user.uid;
-                        showApp();
-                        loadDataFromFirebase();
-                    } else {
-                        console.log("User is signed out.");
-                        if (unsubFromFirestore) unsubFromFirestore();
-                        state = getInitialState();
-                        showLoginScreen();
-                    }
-                });
-
-            } catch (error) {
-                console.error("Firebase initialization failed:", error.message);
+            if (IS_PREVIEW_MODE) {
+                // PREVIEW MODE: Bypass auth and use local storage
+                console.log("Running in Preview Mode.");
                 showNotification("Running in offline preview mode.", "info");
                 showApp();
                 loadDataFromLocalStorage();
+            } else {
+                // LIVE MODE: Use Firebase Authentication
+                try {
+                    if (typeof firebaseConfig === 'undefined' || firebaseConfig.apiKey.includes("YOUR_")) {
+                         throw new Error("Firebase config is not defined or is a placeholder.");
+                    }
+                    firebase.initializeApp(firebaseConfig);
+                    auth = firebase.auth();
+                    db = firebase.firestore();
+                    isFirebaseConnected = true;
+                    
+                    auth.onAuthStateChanged(user => {
+                        if (user) {
+                            console.log("User is signed in:", user.uid);
+                            state.userId = user.uid;
+                            showApp();
+                            loadDataFromFirebase();
+                        } else {
+                            console.log("User is signed out.");
+                            if (unsubFromFirestore) unsubFromFirestore();
+                            state = getInitialState();
+                            showLoginScreen();
+                        }
+                    });
+
+                } catch (error) {
+                    console.error("Firebase initialization failed:", error.message);
+                    showLoginScreen();
+                    authError.innerHTML = `<strong>Cloud Connection Failed.</strong><br>Check your config and Firebase project setup.`;
+                }
             }
         });
     </script>
