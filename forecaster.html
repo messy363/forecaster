@@ -41,6 +41,23 @@
             line-height: 1.1;
         }
 
+        /* Custom file input style */
+        .custom-file-input::file-selector-button {
+            margin-right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            border: 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            background-color: #eef2ff; /* indigo-50 */
+            color: #4338ca; /* indigo-700 */
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .custom-file-input::file-selector-button:hover {
+            background-color: #e0e7ff; /* indigo-100 */
+        }
+
         /* Added animation for modals */
         @keyframes fade-in-up {
             from {
@@ -59,677 +76,599 @@
 </head>
 <body class="bg-slate-100 font-sans antialiased">
 
-    <!-- This container holds the main app -->
-    <div id="app-container" class="h-screen">
-        <div class="flex h-full w-full">
-            <!-- Collapsible Sidebar -->
-            <nav id="sidebar" class="bg-slate-800 text-white flex flex-col justify-between transition-all duration-300 ease-in-out w-16 hover:w-56 overflow-hidden flex-shrink-0">
-                <div>
-                    <div class="flex items-center justify-center h-16 border-b border-slate-700">
-                        <span class="text-2xl">💰</span>
-                    </div>
-                    <ul class="flex flex-col py-4 space-y-2">
-                        <li><button data-modal="settings" class="sidebar-item"><i class="fas fa-cog fa-fw w-6 text-center"></i><span class="ml-3">Settings & Balance</span></button></li>
-                    </ul>
-                </div>
-                <!-- Sign Out Button -->
-                <div class="py-4">
-                     <button id="sign-out-button" class="sidebar-item"><i class="fas fa-sign-out-alt fa-fw w-6 text-center"></i><span class="ml-3">Sign Out</span></button>
-                </div>
-            </nav>
-
-            <!-- Main Content -->
-            <main class="flex-1 flex flex-col">
-                <!-- Header -->
-                <header class="bg-white shadow-md p-4 flex justify-between items-center flex-shrink-0">
-                    <h1 class="text-xl font-bold text-slate-700">Spending Forecaster</h1>
-                    <span id="version-display-main" class="text-xs text-slate-400"></span>
-                </header>
-
-                <!-- Content Area -->
-                <div class="p-4 md:p-6 lg:p-8 overflow-y-auto">
-                    <!-- Key Figures -->
-                    <section id="key-figures" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></section>
-                    
-                    <!-- Data Cards -->
-                    <section id="data-cards" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></section>
-                </div>
-            </main>
-        </div>
-    </div>
-
-    <!-- This container holds the login screen -->
-    <div id="auth-container" class="flex justify-center items-center h-screen">
-         <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg text-center">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-900">Spending Forecaster</h1>
-                <p id="env-mode" class="text-sm text-indigo-500 font-medium mt-2"></p>
+    <div id="app-container" class="flex h-screen">
+        <!-- Collapsible Sidebar -->
+        <nav id="sidebar" class="bg-slate-800 text-white flex flex-col transition-all duration-300 ease-in-out w-16 hover:w-56 overflow-hidden flex-shrink-0">
+            <div class="flex items-center justify-center h-16 border-b border-slate-700">
+                <span class="text-2xl">💰</span>
             </div>
-            <div id="auth-actions">
-                <button id="login-btn" class="w-full px-4 py-3 text-base font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
-                    <i class="fab fa-google mr-2"></i> Sign in with Google
-                </button>
-                <div id="auth-error" class="mt-4 text-sm text-red-600"></div>
+            <ul class="flex flex-col py-4 space-y-2">
+                <li><button data-modal="settings" class="sidebar-item"><i class="fas fa-cog fa-fw w-6 text-center"></i><span class="ml-3">Settings & Balance</span></button></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col">
+            <!-- Header -->
+            <header class="bg-white shadow-md p-4 flex justify-between items-center flex-shrink-0">
+                <h1 class="text-xl font-bold text-slate-700">Spending Forecaster</h1>
+            </header>
+
+            <!-- Content Area -->
+            <div class="p-4 md:p-6 lg:p-8 overflow-y-auto">
+                <!-- Key Figures -->
+                <section id="key-figures" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></section>
+                
+                <!-- Data Cards -->
+                <section id="data-cards" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></section>
             </div>
-             <div id="loader" class="flex justify-center items-center">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-                <p class="ml-4 text-slate-500">Connecting...</p>
-            </div>
-            <p id="version-display-login" class="text-center text-xs text-slate-400 pt-4"></p>
-        </div>
+        </main>
     </div>
 
     <!-- Modals (Overlay & Content) -->
-    <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+    <div id="modal-container" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
         <!-- Modal content will be injected here by JavaScript -->
     </div>
     
-    <!-- Using type="module" for modern import syntax -->
-    <script type="module">
-        // Import Firebase services from the CDN
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-
-        // --- APP VERSION ---
-        const version = "v2.2";
-        document.getElementById('version-display-main').textContent = version;
-        document.getElementById('version-display-login').textContent = version;
-
-        // --- STATE MANAGEMENT ---
-        let state = {
-            initialBalance: 5000,
-            incomings: [
-                {id: "inc1", name: "Q3 Bonus", forecast: 2500, actual: 0},
-                {id: "inc2", name: "Project Windfall", forecast: 800, actual: 850},
-            ],
-            outgoings: [
-                {id: "out1", name: "Summer Holiday", budget: 2000, transactions: [
-                    {id: "t1", desc: "Flights", amount: 850},
-                    {id: "t2", desc: "Hotel Deposit", amount: 400},
-                ]},
-                {id: "out2", name: "New Laptop", budget: 1500, transactions: []}
-            ],
-            adjustments: [],
-            userId: null,
-            activeOutgoingId: null,
-        };
-
-        // --- UI ELEMENT REFERENCES ---
-        const appContainer = document.getElementById('app-container');
-        const authContainer = document.getElementById('auth-container');
-        const signOutButton = document.getElementById('sign-out-button');
-        const loginBtn = document.getElementById('login-btn');
-        const loader = document.getElementById('loader');
-        const envModeEl = document.getElementById('env-mode');
-        const authErrorEl = document.getElementById('auth-error');
-        const modalContainer = document.getElementById('modal-container');
-
-        // --- FIREBASE VARIABLES ---
-        let app;
-        let auth;
-        let db;
-        let unsubFromFirestore = null;
-
-        // --- UI STATE MANAGEMENT ---
-        function setUIState(mode) {
-            console.log(`Setting UI state to: ${mode}`);
-            if (mode === 'loading') {
-                authContainer.style.display = 'flex';
-                appContainer.style.display = 'none';
-                loader.style.display = 'flex';
-                loginBtn.style.display = 'none';
-                authErrorEl.textContent = '';
-            } else if (mode === 'login') {
-                authContainer.style.display = 'flex';
-                appContainer.style.display = 'none';
-                loader.style.display = 'none';
-                loginBtn.style.display = 'block';
-            } else if (mode === 'app') {
-                authContainer.style.display = 'none';
-                appContainer.style.display = 'block';
-            }
-            // Hide modal regardless of state change
-            modalContainer.style.display = 'none';
-        }
-
-        // --- FUNCTION DECLARATIONS (CORE APP LOGIC) ---
-        const saveData = async () => {
-            if (!state.userId || !db) return;
-            try {
-                const dataToSave = {
-                    initialBalance: state.initialBalance,
-                    incomings: state.incomings,
-                    outgoings: state.outgoings,
-                    adjustments: state.adjustments
-                };
-                await setDoc(doc(db, "users", state.userId), dataToSave);
-                console.log("Data saved to Firestore.");
-            } catch (error) {
-                console.error("Error saving to Firestore:", error);
-                showNotification("Failed to save data to the cloud.", "error");
-            }
-        };
-
-        const loadDataFromFirebase = () => {
-            if (unsubFromFirestore) unsubFromFirestore();
-
-            unsubFromFirestore = onSnapshot(doc(db, "users", state.userId), (doc) => {
-                if (doc.exists()) {
-                    const data = doc.data();
-                    state.initialBalance = data.initialBalance || 0;
-                    state.incomings = data.incomings || [];
-                    state.outgoings = data.outgoings || [];
-                    state.adjustments = data.adjustments || [];
-                    console.log("Real-time data loaded/updated from Firestore.");
-                } else {
-                    console.log("No existing data for this user. Saving initial sample state.");
-                    saveData();
-                }
-                renderApp();
-            }, (error) => {
-                console.error("Error listening to Firestore:", error);
-                showNotification("Could not load data. Check Firestore rules.", "error");
-            });
-        };
-        
-        const renderApp = () => {
-            renderKeyFigures();
-            renderDataCards();
-        };
-
-        const getSum = (arr, prop) => (arr || []).reduce((sum, item) => sum + (Number(item[prop]) || 0), 0);
-        const calculateProjectedBalance = () => state.initialBalance + getSum(state.incomings, 'actual') + getSum(state.adjustments, 'amount') - (state.outgoings || []).reduce((sum, out) => sum + getSum(out.transactions, 'amount'), 0);
-        const calculateFutureIncome = () => (state.incomings || []).filter(inc => !inc.actual || Number(inc.actual) === 0).reduce((sum, inc) => sum + (Number(inc.forecast) || 0), 0);
-        const calculateRemainingBudget = () => (state.outgoings || []).reduce((sum, out) => sum + ((Number(out.budget) || 0) - getSum(out.transactions, 'amount')), 0);
-        const calculateForecastedYearEnd = () => calculateProjectedBalance() + calculateFutureIncome() - calculateRemainingBudget();
-        const formatCurrency = (value) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(value);
-
-        const renderKeyFigures = () => {
-            const container = document.getElementById('key-figures');
-            container.innerHTML = `
-                <div class="bg-white p-4 rounded-lg shadow">
-                    <h3 class="text-slate-500 font-semibold text-sm md:text-base">Projected Balance</h3>
-                    <p class="key-figure-value font-bold text-slate-800">${formatCurrency(calculateProjectedBalance())}</p>
-                </div>
-                <div class="bg-white p-4 rounded-lg shadow flex flex-col justify-between">
-                    <div>
-                        <h3 class="text-slate-500 font-semibold text-sm md:text-base flex items-center">
-                            <i class="fas fa-arrow-trend-up text-green-500 mr-2"></i>
-                            Future Income
-                        </h3>
-                        <p class="font-bold text-green-600 text-3xl">${formatCurrency(calculateFutureIncome())}</p>
-                    </div>
-                    <div class="mt-2">
-                        <h3 class="text-slate-500 font-semibold text-sm md:text-base flex items-center">
-                            <i class="fas fa-arrow-trend-down text-red-500 mr-2"></i>
-                            Remaining Budget
-                        </h3>
-                        <p class="font-bold text-red-600 text-3xl">${formatCurrency(calculateRemainingBudget())}</p>
-                    </div>
-                </div>
-                <div class="bg-white p-4 rounded-lg shadow">
-                    <h3 class="text-slate-500 font-semibold text-sm md:text-base">Forecasted Year-End</h3>
-                    <p class="key-figure-value font-bold text-blue-600">${formatCurrency(calculateForecastedYearEnd())}</p>
-                </div>
-            `;
-        };
-
-        const renderDataCards = () => {
-            const container = document.getElementById('data-cards');
-            const outgoingsHtml = (state.outgoings || []).map(out => {
-                const spent = getSum(out.transactions, 'amount');
-                const budget = Number(out.budget) || 0;
-                const percentage = budget > 0 ? (spent / budget) * 100 : 0;
-                let progressBarColor = 'bg-green-500';
-                if (percentage > 90) progressBarColor = 'bg-red-500';
-                else if (percentage > 75) progressBarColor = 'bg-yellow-500';
-
-                return `
-                    <li class="group flex items-center justify-between py-3 border-b border-slate-200 last:border-b-0">
-                        <div class="flex-1 pr-4">
-                            <span class="font-medium text-slate-700">${out.name}</span>
-                            <button data-action="edit-outgoing" data-id="${out.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
-                            <p class="text-sm text-slate-500">${formatCurrency(spent)} / ${formatCurrency(budget)}</p>
-                            <div class="w-full bg-slate-200 rounded-full h-2.5 mt-1.5">
-                                <div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
-                            </div>
-                        </div>
-                        <button data-action="manage-transactions" data-id="${out.id}" class="text-blue-600 font-semibold text-sm hover:text-blue-800 flex-shrink-0">Spend</button>
-                    </li>
-                `;
-            }).join('');
-
-            const incomingsHtml = (state.incomings || []).map(inc => `
-                <li class="group flex items-center justify-between py-3 border-b border-slate-200 last:border-b-0">
-                    <div>
-                        <span class="font-medium text-slate-700">${inc.name}</span>
-                        <button data-action="edit-income" data-id="${inc.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm text-slate-500">Forecast: ${formatCurrency(inc.forecast)}</p>
-                        <p class="text-sm font-semibold ${inc.actual > 0 ? 'text-green-600' : 'text-slate-600'}">Actual: ${formatCurrency(inc.actual)}</p>
-                    </div>
-                </li>
-            `).join('');
-
-            container.innerHTML = `
-                <div class="bg-white p-6 rounded-lg shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold text-slate-800">Outgoings</h3>
-                        <button data-modal="add-outgoing" class="bg-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-lg text-sm hover:bg-slate-300 transition-colors">+ Add</button>
-                    </div>
-                    <ul class="space-y-2">${outgoingsHtml || '<p class="text-slate-500">No outgoing budgets added yet.</p>'}</ul>
-                </div>
-                <div class="bg-white p-6 rounded-lg shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold text-slate-800">Incomings</h3>
-                        <button data-modal="add-income" class="bg-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-lg text-sm hover:bg-slate-300 transition-colors">+ Add</button>
-                    </div>
-                    <ul class="space-y-2">${incomingsHtml || '<p class="text-slate-500">No incoming items added yet.</p>'}</ul>
-                </div>
-            `;
-        };
-                    
-        const openModal = (modalType, data = null) => {
-            let content = '';
-            const modalShell = (title, body, footer) => `
-                <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-lg animate-fade-in-up">
-                    <h2 class="text-xl font-bold mb-4 text-slate-800">${title}</h2>
-                    <div class="modal-body">${body}</div>
-                    <div class="modal-footer mt-6 flex justify-between items-center">${footer}</div>
-                </div>`;
-
-            switch(modalType) {
-                case 'settings': {
-                    const adjustmentsLog = (state.adjustments || []).map(adj => `
-                        <li class="flex justify-between text-sm py-1 border-b">
-                            <span>${adj.date}: ${adj.desc}</span>
-                            <span class="font-medium ${adj.amount >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(adj.amount)}</span>
-                        </li>`).join('');
-                    const body = `
-                        <div class="mb-6">
-                            <label for="initialBalanceInput" class="block mb-2 font-medium text-slate-600">Initial Balance</label>
-                            <p class="text-sm text-slate-500 mb-2">Set your starting bank balance. This is typically done only once.</p>
-                            <input id="initialBalanceInput" type="number" step="0.01" value="${state.initialBalance}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                        </div>
-
-                        <div class="mb-6 border-t pt-4">
-                            <h3 class="text-lg font-bold text-slate-700 mb-2">Reconcile Balance</h3>
-                            <p class="mb-1 text-sm">App's Projected Balance: <span class="font-bold text-slate-800">${formatCurrency(calculateProjectedBalance())}</span></p>
-                            <p class="mb-4 text-sm text-slate-500">Enter your actual bank balance to create a balancing adjustment.</p>
-                            <div class="flex gap-4">
-                                <input id="actualBalanceInput" type="number" step="0.01" class="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 1234.56">
-                                <button id="confirm-reconcile" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Reconcile</button>
-                            </div>
-                        </div>
-
-                        <div class="border-t pt-4">
-                            <h3 class="text-lg font-bold mb-2 text-slate-700">Reconciliation Log</h3>
-                            <ul class="max-h-48 overflow-y-auto bg-slate-50 p-2 rounded-md">${adjustmentsLog || '<li>No adjustments recorded.</li>'}</ul>
-                        </div>
-                    `;
-                    const footer = `<span></span><button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
-                    content = modalShell('Settings & Balance', body, footer);
-                    break;
-                }
-                case 'add-outgoing':
-                case 'edit-outgoing': {
-                    const isEdit = modalType === 'edit-outgoing';
-                    const out = isEdit ? state.outgoings.find(o => o.id === data) : {};
-                    const body = `
-                        <label for="outgoingName" class="block mb-2 font-medium text-slate-600">Name</label>
-                        <input id="outgoingName" type="text" value="${isEdit ? out.name : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., Summer Holiday">
-                        <label for="outgoingBudget" class="block mb-2 font-medium text-slate-600">Total Budget</label>
-                        <input id="outgoingBudget" type="number" step="0.01" value="${isEdit ? out.budget : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 2000">
-                    `;
-                    const footer = `
-                        <div>${isEdit ? `<button data-action="delete-item" data-type="outgoing" data-id="${data}" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
-                        <div class="flex gap-4">
-                            <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
-                            <button data-action="save-outgoing" data-id="${isEdit ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
-                        </div>
-                    `;
-                    content = modalShell(isEdit ? 'Edit Outgoing' : 'Add Outgoing', body, footer);
-                    break;
-                }
-                case 'add-income':
-                case 'edit-income': {
-                    const isEditInc = modalType === 'edit-income';
-                    const inc = isEditInc ? state.incomings.find(i => i.id === data) : {};
-                    const body = `
-                        <label for="incomeName" class="block mb-2 font-medium text-slate-600">Name</label>
-                        <input id="incomeName" type="text" value="${isEditInc ? inc.name : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., Q1 Shares">
-                        <label for="incomeForecast" class="block mb-2 font-medium text-slate-600">Forecast Amount</label>
-                        <input id="incomeForecast" type="number" step="0.01" value="${isEditInc ? inc.forecast : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., 500">
-                        <label for="incomeActual" class="block mb-2 font-medium text-slate-600">Actual Amount (0 if not received)</label>
-                        <input id="incomeActual" type="number" step="0.01" value="${isEditInc ? inc.actual : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 550">
-                    `;
-                    const footer = `
-                        <div>${isEditInc ? `<button data-action="delete-item" data-type="income" data-id="${data}" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
-                        <div class="flex gap-4">
-                            <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
-                            <button data-action="save-income" data-id="${isEditInc ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
-                        </div>
-                    `;
-                    content = modalShell(isEditInc ? 'Edit Income' : 'Add Income', body, footer);
-                    break;
-                }
-                case 'manage-transactions': {
-                    state.activeOutgoingId = data;
-                    const activeOutgoing = state.outgoings.find(o => o.id === data);
-                    const transactionsHtml = (activeOutgoing.transactions || []).map(t => `
-                        <li class="flex justify-between items-center text-sm py-2 border-b group">
-                            <span>${t.desc}</span>
-                            <div class="flex items-center gap-x-3">
-                                <span class="font-medium text-slate-700">${formatCurrency(t.amount)}</span>
-                                <button data-action="delete-transaction" data-transaction-id="${t.id}" class="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <i class="fas fa-trash-alt fa-sm"></i>
-                                </button>
-                            </div>
-                        </li>
-                    `).join('');
-                    const body = `
-                        <div class="mb-4 border rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
-                            <ul class="space-y-1">${transactionsHtml || '<li class="text-slate-500">No transactions yet.</li>'}</ul>
-                        </div>
-                        <h3 class="text-base font-semibold mb-2 text-slate-700">Add New Transaction</h3>
-                        <form id="add-transaction-form" class="flex gap-2">
-                            <input id="transactionDesc" type="text" placeholder="Description (e.g., Flights)" class="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                            <input id="transactionAmount" type="number" step="0.01" placeholder="Amount" class="w-32 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                            <button type="submit" data-action="add-transaction" class="px-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Add</button>
-                        </form>
-                    `;
-                    const footer = `<span></span><button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
-                    content = modalShell(`Transactions for ${activeOutgoing.name}`, body, footer);
-                    break;
-                }
-                case 'confirm-delete': {
-                    const { type, id } = data;
-                    const body = `<p class="text-slate-600">Are you sure you want to permanently delete this item? This action cannot be undone.</p>`;
-                    const footer = `
-                        <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
-                        <button data-action="execute-delete" data-type="${type}" data-id="${id}" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">Confirm Delete</button>
-                    `;
-                    content = modalShell('Confirm Deletion', body, footer);
-                    break;
-                }
-            }
-            
-            modalContainer.style.display = 'flex';
-        };
-            
-        const closeModal = () => {
-            modalContainer.style.display = 'none';
-            modalContainer.innerHTML = '';
-            state.activeOutgoingId = null;
-        };
-
-        const showNotification = (message, type = 'info') => {
-            const colors = {
-                info: 'bg-blue-500',
-                success: 'bg-green-500',
-                error: 'bg-red-500'
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    
+    <!-- App Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- FIREBASE CONFIGURATION ---
+            const firebaseConfig = {
+              apiKey: "YOUR_API_KEY",
+              authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+              projectId: "YOUR_PROJECT_ID",
+              storageBucket: "YOUR_PROJECT_ID.appspot.com",
+              messagingSenderId: "YOUR_SENDER_ID",
+              appId: "YOUR_APP_ID"
             };
-            const notification = document.createElement('div');
-            notification.className = `fixed bottom-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg ${colors[type]} animate-fade-in-up`;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
-        };
-            
-        // --- EVENT LISTENERS ---
-        signOutButton.addEventListener('click', () => {
-            if (auth) {
-                signOut(auth);
-            }
-        });
-            
-        document.getElementById('sidebar').addEventListener('click', e => {
-            const button = e.target.closest('button[data-modal]');
-            if (button) {
-                openModal(button.dataset.modal);
-            }
-        });
 
-        document.getElementById('data-cards').addEventListener('click', e => {
-            const target = e.target.closest('button');
-            if (!target) return;
+            // --- STATE MANAGEMENT ---
+            let state = {
+                incomings: [],
+                outgoings: [],
+                adjustments: [],
+                userId: null,
+                activeOutgoingId: null,
+            };
 
-            const { action, modal, id } = target.dataset;
-            if(modal) {
-                 openModal(modal);
-            } else if (action) {
-                openModal(action, id);
-            }
-        });
+            let db;
+            let auth;
+            let unsubFromFirestore = null;
+            let isFirebaseConnected = false;
 
-        modalContainer.addEventListener('click', e => {
-            const target = e.target;
-            const button = target.closest('button');
-            
-            if (target === modalContainer) {
-                closeModal();
-                return;
-            }
-            
-            if (!button) return;
+            // --- FUNCTION DECLARATIONS ---
+            const saveDataToLocalStorage = () => {
+                localStorage.setItem('forecasterData', JSON.stringify(state));
+                console.log("Data saved to Local Storage.");
+            };
 
-            const { action, id, type, transactionId } = button.dataset;
-
-            switch(action) {
-                case 'cancel-modal':
-                    closeModal();
-                    break;
-                case 'save-outgoing': {
-                    const name = document.getElementById('outgoingName').value.trim();
-                    const budget = document.getElementById('outgoingBudget').value;
-                    if (!name || !budget) return showNotification('Please fill all fields.', 'error');
-
-                    if (id) {
-                        const out = state.outgoings.find(o => o.id === id);
-                        if (out) {
-                            out.name = name;
-                            out.budget = parseFloat(budget);
-                        }
-                    } else {
-                        state.outgoings.push({ id: crypto.randomUUID(), name, budget: parseFloat(budget), transactions: [] });
-                    }
-                    saveData();
-                    renderApp();
-                    closeModal();
-                    showNotification('Outgoing saved.', 'success');
-                    break;
-                }
-                case 'save-income': {
-                    const name = document.getElementById('incomeName').value.trim();
-                    const forecast = document.getElementById('incomeForecast').value;
-                    const actual = document.getElementById('incomeActual').value;
-                    if (!name || !forecast) return showNotification('Name and Forecast are required.', 'error');
-
-                    if (id) {
-                        const inc = state.incomings.find(i => i.id === id);
-                        if (inc) {
-                            inc.name = name;
-                            inc.forecast = parseFloat(forecast);
-                            inc.actual = parseFloat(actual) || 0;
-                        }
-                    } else {
-                        state.incomings.push({ id: crypto.randomUUID(), name, forecast: parseFloat(forecast), actual: parseFloat(actual) || 0 });
-                    }
-                    saveData();
-                    renderApp();
-                    closeModal();
-                    showNotification('Income saved.', 'success');
-                    break;
-                }
-                case 'delete-item': {
-                    openModal('confirm-delete', { type, id });
-                    break;
-                }
-                case 'execute-delete': {
-                    if (type === 'outgoing') {
-                        state.outgoings = state.outgoings.filter(o => o.id !== id);
-                    } else if (type === 'income') {
-                        state.incomings = state.incomings.filter(i => i.id !== id);
-                    }
-                    saveData();
-                    renderApp();
-                    closeModal();
-                    showNotification('Item deleted.', 'success');
-                    break;
-                }
-                case 'delete-transaction': {
-                    const outgoingId = state.activeOutgoingId;
-                    const outgoing = state.outgoings.find(o => o.id === outgoingId);
-                    if (outgoing && transactionId) {
-                        outgoing.transactions = outgoing.transactions.filter(t => t.id !== transactionId);
-                        saveData();
-                        renderApp();
-                        openModal('manage-transactions', outgoingId);
-                        showNotification('Transaction deleted.', 'success');
-                    }
-                    break;
-                }
-            }
-
-            if (target.id === 'confirm-reconcile') {
-                const actualBalanceInput = document.getElementById('actualBalanceInput');
-                const actualBalance = parseFloat(actualBalanceInput.value);
-                if (isNaN(actualBalance)) return showNotification('Please enter a valid actual balance.', 'error');
-
-                const projected = calculateProjectedBalance();
-                const difference = actualBalance - projected;
-                
-                if (Math.abs(difference) > 0.001) {
-                     state.adjustments.push({
-                        id: crypto.randomUUID(),
-                        desc: 'Balance Reconciliation',
-                        amount: difference,
-                        date: new Date().toISOString().split('T')[0]
-                     });
-                     saveData();
-                     renderApp();
-                     showNotification('Balance reconciled.', 'success');
-                }
-                openModal('settings');
-            }
-        });
-
-        modalContainer.addEventListener('submit', e => {
-            e.preventDefault();
-            if (e.target.id === 'add-transaction-form') {
-                const desc = document.getElementById('transactionDesc').value.trim();
-                const amount = document.getElementById('transactionAmount').value;
-                if (!desc || !amount) return showNotification('Please provide description and amount.', 'error');
-
-                const outgoing = state.outgoings.find(o => o.id === state.activeOutgoingId);
-                if(outgoing) {
-                    if (!outgoing.transactions) outgoing.transactions = [];
-                    outgoing.transactions.push({id: crypto.randomUUID(), desc, amount: parseFloat(amount)});
-                    saveData();
-                    renderApp();
-                    openModal('manage-transactions', state.activeOutgoingId);
-                }
-            }
-        });
-
-        modalContainer.addEventListener('change', e => {
-            if (e.target.id === 'initialBalanceInput') {
-                state.initialBalance = parseFloat(e.target.value) || 0;
-                saveData();
-                renderApp();
-            }
-        });
-
-        // --- AUTHENTICATION & INITIALIZATION LOGIC ---
-        async function initialize() {
-            setUIState('loading');
-            // This special variable is provided by the preview environment
-            const isPreview = typeof __firebase_config !== 'undefined';
-
-            if (isPreview) {
-                // --- PREVIEW MODE ---
-                envModeEl.textContent = 'Running in Preview Mode';
-                console.log("Preview Mode: Using injected Firebase config.");
-                const firebaseConfig = JSON.parse(__firebase_config);
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                
+            const saveDataToFirebase = async () => {
+                if (!state.userId) return;
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                    
-                    state.userId = auth.currentUser.uid;
-                    setUIState('app');
-                    loadDataFromFirebase();
-
+                    const dataToSave = {
+                        incomings: state.incomings,
+                        outgoings: state.outgoings,
+                        adjustments: state.adjustments
+                    };
+                    await db.collection('users').doc(state.userId).set(dataToSave);
+                    console.log("Data saved to Firestore.");
                 } catch (error) {
-                    console.error("Preview Mode Auth Error:", error);
-                    setUIState('login');
-                    authErrorEl.textContent = `Preview Auth Failed: ${error.message}`;
+                    console.error("Error saving to Firestore:", error);
+                    showNotification("Failed to save data to the cloud.", "error");
                 }
+            };
 
-            } else {
-                // --- LIVE MODE ---
-                envModeEl.textContent = 'Running in Live Mode';
-                console.log("Live Mode: Attempting to load config from config.js");
-                
-                try {
-                    const { firebaseConfig } = await import('./config.js');
-                    if (!firebaseConfig) throw new Error("firebaseConfig not found in config.js.");
-
-                    app = initializeApp(firebaseConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
-                    console.log("Live Mode: Firebase initialized with config.js.");
-                    setupAuthObserver();
-
-                } catch (error) {
-                    console.error("Initialization Error:", error);
-                    setUIState('login');
-                    authErrorEl.textContent = `Initialization Failed: ${error.message}. Make sure config.js exists and is correct.`;
-                }
-            }
-        }
-
-        function setupAuthObserver() {
-            onAuthStateChanged(auth, user => {
-                if (user) {
-                    // User is signed in
-                    console.log("Auth State: Signed In. User:", user.uid);
-                    state.userId = user.uid;
-                    setUIState('app');
-                    loadDataFromFirebase();
+            const saveData = () => {
+                if (isFirebaseConnected && state.userId) {
+                    saveDataToFirebase();
                 } else {
-                    // User is signed out
-                    console.log("Auth State: Signed Out.");
-                    if (unsubFromFirestore) unsubFromFirestore();
-                    setUIState('login');
+                    saveDataToLocalStorage();
+                }
+            };
+
+            const renderApp = () => {
+                renderKeyFigures();
+                renderDataCards();
+            };
+
+            const loadDataFromLocalStorage = () => {
+                const data = localStorage.getItem('forecasterData');
+                if (data) {
+                    try {
+                        const parsedData = JSON.parse(data);
+                        if (parsedData && typeof parsedData === 'object') {
+                            state.incomings = parsedData.incomings || [];
+                            state.outgoings = parsedData.outgoings || [];
+                            state.adjustments = parsedData.adjustments || [];
+                            console.log("Data loaded from Local Storage.");
+                        }
+                    } catch (e) {
+                        console.error("Could not parse local storage data. Clearing it and starting fresh.", e);
+                        localStorage.removeItem('forecasterData');
+                    }
+                }
+                renderApp();
+            };
+
+            const loadDataFromFirebase = () => {
+                if (unsubFromFirestore) unsubFromFirestore();
+
+                unsubFromFirestore = db.collection('users').doc(state.userId)
+                    .onSnapshot(doc => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            state.incomings = data.incomings || [];
+                            state.outgoings = data.outgoings || [];
+                            state.adjustments = data.adjustments || [];
+                            console.log("Real-time data loaded/updated from Firestore.");
+                        } else {
+                            console.log("No existing data for this user. Saving initial blank state.");
+                            saveDataToFirebase(); // Save a blank state for new users
+                        }
+                        renderApp();
+                    }, error => {
+                        console.error("Error listening to Firestore:", error);
+                        showNotification("Real-time sync failed. Falling back to local storage.", "error");
+                        isFirebaseConnected = false;
+                        loadDataFromLocalStorage();
+                    });
+            };
+
+            const getSum = (arr, prop) => (arr || []).reduce((sum, item) => sum + (Number(item[prop]) || 0), 0);
+            
+            const formatDateUK = (dateString) => {
+                const date = new Date(dateString);
+                return new Intl.DateTimeFormat('en-GB').format(date);
+            };
+
+            const calculateProjectedBalance = () => {
+                const totalActualIncome = getSum(state.incomings, 'actual');
+                const totalAdjustments = getSum(state.adjustments, 'amount');
+                const totalSpent = (state.outgoings || []).reduce((sum, out) => sum + getSum(out.transactions, 'amount'), 0);
+                return totalAdjustments + totalActualIncome - totalSpent;
+            };
+
+            const calculateFutureIncome = () => {
+                return (state.incomings || [])
+                    .filter(inc => !inc.actual || Number(inc.actual) === 0)
+                    .reduce((sum, inc) => sum + (Number(inc.forecast) || 0), 0);
+            };
+
+            const calculateRemainingBudget = () => {
+                return (state.outgoings || []).reduce((sum, out) => {
+                    const spent = getSum(out.transactions, 'amount');
+                    const remaining = (Number(out.budget) || 0) - spent;
+                    return sum + remaining;
+                }, 0);
+            };
+
+            const calculateForecastedYearEnd = () => {
+                return calculateProjectedBalance() + calculateFutureIncome() - calculateRemainingBudget();
+            };
+            
+            const formatCurrency = (value) => {
+                return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(value);
+            };
+
+            const renderKeyFigures = () => {
+                const container = document.getElementById('key-figures');
+                container.innerHTML = `
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h3 class="text-slate-500 font-semibold text-sm md:text-base">Projected Balance</h3>
+                        <p class="key-figure-value font-bold text-slate-800">${formatCurrency(calculateProjectedBalance())}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-slate-500 font-semibold text-sm md:text-base flex items-center">
+                                <i class="fas fa-arrow-trend-up text-green-500 mr-2"></i>
+                                Future Income
+                            </h3>
+                            <p class="font-bold text-green-600 text-3xl">${formatCurrency(calculateFutureIncome())}</p>
+                        </div>
+                        <div class="mt-2">
+                            <h3 class="text-slate-500 font-semibold text-sm md:text-base flex items-center">
+                                <i class="fas fa-arrow-trend-down text-red-500 mr-2"></i>
+                                Remaining Budget
+                            </h3>
+                            <p class="font-bold text-red-600 text-3xl">${formatCurrency(calculateRemainingBudget())}</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h3 class="text-slate-500 font-semibold text-sm md:text-base">Forecasted Year-End</h3>
+                        <p class="key-figure-value font-bold text-blue-600">${formatCurrency(calculateForecastedYearEnd())}</p>
+                    </div>
+                `;
+            };
+
+            const renderDataCards = () => {
+                const container = document.getElementById('data-cards');
+                const outgoingsHtml = (state.outgoings || []).map(out => {
+                    const spent = getSum(out.transactions, 'amount');
+                    const budget = Number(out.budget) || 0;
+                    const percentage = budget > 0 ? (spent / budget) * 100 : 0;
+                    let progressBarColor = 'bg-green-500';
+                    if (percentage > 90) progressBarColor = 'bg-red-500';
+                    else if (percentage > 75) progressBarColor = 'bg-yellow-500';
+
+                    return `
+                        <li class="group flex items-center justify-between py-3 border-b border-slate-200 last:border-b-0">
+                            <div class="flex-1 pr-4">
+                                <span class="font-medium text-slate-700">${out.name}</span>
+                                <button data-action="edit-outgoing" data-id="${out.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
+                                <p class="text-sm text-slate-500">${formatCurrency(spent)} / ${formatCurrency(budget)}</p>
+                                <div class="w-full bg-slate-200 rounded-full h-2.5 mt-1.5">
+                                    <div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
+                                </div>
+                            </div>
+                            <button data-action="manage-transactions" data-id="${out.id}" class="text-blue-600 font-semibold text-sm hover:text-blue-800 flex-shrink-0">Spend</button>
+                        </li>
+                    `;
+                }).join('');
+
+                const incomingsHtml = (state.incomings || []).map(inc => `
+                    <li class="group flex items-center justify-between py-3 border-b border-slate-200 last:border-b-0">
+                        <div>
+                            <span class="font-medium text-slate-700">${inc.name}</span>
+                            <button data-action="edit-income" data-id="${inc.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm text-slate-500">Forecast: ${formatCurrency(inc.forecast)}</p>
+                            <p class="text-sm font-semibold ${inc.actual > 0 ? 'text-green-600' : 'text-slate-600'}">Actual: ${formatCurrency(inc.actual)}</p>
+                        </div>
+                    </li>
+                `).join('');
+
+                container.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-slate-800">Outgoings</h3>
+                            <button data-modal="add-outgoing" class="bg-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-lg text-sm hover:bg-slate-300 transition-colors">+ Add</button>
+                        </div>
+                        <ul class="space-y-2">${outgoingsHtml || '<p class="text-slate-500">No outgoing budgets added yet.</p>'}</ul>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-slate-800">Incomings</h3>
+                            <button data-modal="add-income" class="bg-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-lg text-sm hover:bg-slate-300 transition-colors">+ Add</button>
+                        </div>
+                        <ul class="space-y-2">${incomingsHtml || '<p class="text-slate-500">No incoming items added yet.</p>'}</ul>
+                    </div>
+                `;
+            };
+            
+            const modalContainer = document.getElementById('modal-container');
+            
+            const openModal = (modalType, data = null) => {
+                let content = '';
+                const modalShell = (title, body, footer) => `
+                    <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-lg animate-fade-in-up">
+                        <h2 class="text-xl font-bold mb-4 text-slate-800">${title}</h2>
+                        <div class="modal-body">${body}</div>
+                        <div class="modal-footer mt-6 flex justify-between items-center">${footer}</div>
+                    </div>`;
+
+                switch(modalType) {
+                    case 'settings': {
+                        const adjustmentsLog = (state.adjustments || []).map(adj => `
+                            <li class="flex justify-between text-sm py-1 border-b">
+                                <span>${adj.date}: ${adj.desc}</span>
+                                <span class="font-medium ${adj.amount >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(adj.amount)}</span>
+                            </li>`).join('');
+                        const body = `
+                            <div class="mb-6">
+                                <h3 class="text-lg font-bold text-slate-700 mb-2">Reconcile Balance</h3>
+                                <p class="text-sm text-slate-500 mb-2">To get started, enter your current bank balance here. Use this regularly to keep the app in sync with your bank.</p>
+                                <p class="mb-1 text-sm">App's Projected Balance: <span class="font-bold text-slate-800">${formatCurrency(calculateProjectedBalance())}</span></p>
+                                <form id="reconcile-form" class="flex gap-4 mt-2">
+                                    <input id="actualBalanceInput" type="number" step="0.01" class="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Your actual bank balance">
+                                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Reconcile</button>
+                                </form>
+                            </div>
+
+                            <div class="border-t pt-4">
+                                <h3 class="text-lg font-bold mb-2 text-slate-700">Reconciliation Log</h3>
+                                <ul class="max-h-48 overflow-y-auto bg-slate-50 p-2 rounded-md">${adjustmentsLog || '<li>No adjustments recorded.</li>'}</ul>
+                            </div>
+                        `;
+                        const footer = `<span></span><button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
+                        content = modalShell('Settings & Balance', body, footer);
+                        break;
+                    }
+                    case 'add-outgoing':
+                    case 'edit-outgoing': {
+                        const isEdit = modalType === 'edit-outgoing';
+                        const out = isEdit ? state.outgoings.find(o => o.id === data) : {};
+                        const body = `
+                            <label for="outgoingName" class="block mb-2 font-medium text-slate-600">Name</label>
+                            <input id="outgoingName" type="text" value="${isEdit ? out.name : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., Summer Holiday">
+                            <label for="outgoingBudget" class="block mb-2 font-medium text-slate-600">Total Budget</label>
+                            <input id="outgoingBudget" type="number" step="0.01" value="${isEdit ? out.budget : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 2000">
+                        `;
+                        const footer = `
+                            <div>${isEdit ? `<button data-action="delete-item" data-type="outgoing" data-id="${data}" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
+                            <div class="flex gap-4">
+                                <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
+                                <button data-action="save-outgoing" data-id="${isEdit ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
+                            </div>
+                        `;
+                        content = modalShell(isEdit ? 'Edit Outgoing' : 'Add Outgoing', body, footer);
+                        break;
+                    }
+                    case 'add-income':
+                    case 'edit-income': {
+                        const isEditInc = modalType === 'edit-income';
+                        const inc = isEditInc ? state.incomings.find(i => i.id === data) : {};
+                        const body = `
+                            <label for="incomeName" class="block mb-2 font-medium text-slate-600">Name</label>
+                            <input id="incomeName" type="text" value="${isEditInc ? inc.name : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., Q1 Shares">
+                            <label for="incomeForecast" class="block mb-2 font-medium text-slate-600">Forecast Amount</label>
+                            <input id="incomeForecast" type="number" step="0.01" value="${isEditInc ? inc.forecast : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., 500">
+                            <label for="incomeActual" class="block mb-2 font-medium text-slate-600">Actual Amount (0 if not received)</label>
+                            <input id="incomeActual" type="number" step="0.01" value="${isEditInc ? inc.actual : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 550">
+                        `;
+                        const footer = `
+                            <div>${isEditInc ? `<button data-action="delete-item" data-type="income" data-id="${data}" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
+                            <div class="flex gap-4">
+                                <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
+                                <button data-action="save-income" data-id="${isEditInc ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
+                            </div>
+                        `;
+                        content = modalShell(isEditInc ? 'Edit Income' : 'Add Income', body, footer);
+                        break;
+                    }
+                    case 'manage-transactions': {
+                        state.activeOutgoingId = data;
+                        const activeOutgoing = state.outgoings.find(o => o.id === data);
+                        const transactionsHtml = (activeOutgoing.transactions || []).map(t => `
+                            <li class="flex justify-between items-center text-sm py-2 border-b group">
+                                <span>${t.desc}</span>
+                                <div class="flex items-center gap-x-3">
+                                    <span class="font-medium text-slate-700">${formatCurrency(t.amount)}</span>
+                                    <button data-action="delete-transaction" data-transaction-id="${t.id}" class="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <i class="fas fa-trash-alt fa-sm"></i>
+                                    </button>
+                                </div>
+                            </li>
+                        `).join('');
+                        const body = `
+                            <div class="mb-4 border rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
+                                <ul class="space-y-1">${transactionsHtml || '<li class="text-slate-500">No transactions yet.</li>'}</ul>
+                            </div>
+                            <h3 class="text-base font-semibold mb-2 text-slate-700">Add New Transaction</h3>
+                            <form id="add-transaction-form" class="flex gap-2">
+                                <input id="transactionDesc" type="text" placeholder="Description (e.g., Flights)" class="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <input id="transactionAmount" type="number" step="0.01" placeholder="Amount" class="w-32 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <button type="submit" data-action="add-transaction" class="px-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Add</button>
+                            </form>
+                        `;
+                        const footer = `<span></span><button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
+                        content = modalShell(`Transactions for ${activeOutgoing.name}`, body, footer);
+                        break;
+                    }
+                    case 'confirm-delete': {
+                        const { type, id } = data;
+                        const body = `<p class="text-slate-600">Are you sure you want to permanently delete this item? This action cannot be undone.</p>`;
+                        const footer = `
+                            <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
+                            <button data-action="execute-delete" data-type="${type}" data-id="${id}" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">Confirm Delete</button>
+                        `;
+                        content = modalShell('Confirm Deletion', body, footer);
+                        break;
+                    }
+                }
+                
+                modalContainer.innerHTML = content;
+                modalContainer.classList.remove('hidden');
+            };
+            
+            const closeModal = () => {
+                modalContainer.classList.add('hidden');
+                modalContainer.innerHTML = '';
+                state.activeOutgoingId = null;
+            };
+
+            const showNotification = (message, type = 'info') => {
+                const colors = {
+                    info: 'bg-blue-500',
+                    success: 'bg-green-500',
+                    error: 'bg-red-500'
+                };
+                const notification = document.createElement('div');
+                notification.className = `fixed bottom-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg ${colors[type]} animate-fade-in-up`;
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            };
+            
+            // --- EVENT LISTENERS ---
+            
+            document.getElementById('sidebar').addEventListener('click', e => {
+                const button = e.target.closest('button[data-modal]');
+                if (button) {
+                    openModal(button.dataset.modal);
                 }
             });
-        }
 
-        loginBtn.addEventListener('click', async () => {
-            console.log("Login button clicked.");
-            const provider = new GoogleAuthProvider();
+            document.getElementById('data-cards').addEventListener('click', e => {
+                const target = e.target.closest('button');
+                if (!target) return;
+
+                const { action, modal, id } = target.dataset;
+                if(modal) {
+                     openModal(modal);
+                } else if (action) {
+                    openModal(action, id);
+                }
+            });
+
+            modalContainer.addEventListener('click', e => {
+                const target = e.target;
+                const button = target.closest('button');
+                
+                if (target === modalContainer) {
+                    closeModal();
+                    return;
+                }
+                
+                if (!button) return;
+
+                const { action, id, type, transactionId } = button.dataset;
+
+                switch(action) {
+                    case 'cancel-modal':
+                        closeModal();
+                        break;
+                    case 'save-outgoing': {
+                        const name = document.getElementById('outgoingName').value.trim();
+                        const budget = document.getElementById('outgoingBudget').value;
+                        if (!name || !budget) return showNotification('Please fill all fields.', 'error');
+
+                        if (id) {
+                            const out = state.outgoings.find(o => o.id === id);
+                            if (out) {
+                                out.name = name;
+                                out.budget = parseFloat(budget);
+                            }
+                        } else {
+                            state.outgoings.push({ id: crypto.randomUUID(), name, budget: parseFloat(budget), transactions: [] });
+                        }
+                        saveData();
+                        if (!isFirebaseConnected) renderApp();
+                        closeModal();
+                        showNotification('Outgoing saved.', 'success');
+                        break;
+                    }
+                    case 'save-income': {
+                        const name = document.getElementById('incomeName').value.trim();
+                        const forecast = document.getElementById('incomeForecast').value;
+                        const actual = document.getElementById('incomeActual').value;
+                        if (!name || !forecast) return showNotification('Name and Forecast are required.', 'error');
+
+                        if (id) {
+                            const inc = state.incomings.find(i => i.id === id);
+                            if (inc) {
+                                inc.name = name;
+                                inc.forecast = parseFloat(forecast);
+                                inc.actual = parseFloat(actual) || 0;
+                            }
+                        } else {
+                            state.incomings.push({ id: crypto.randomUUID(), name, forecast: parseFloat(forecast), actual: parseFloat(actual) || 0 });
+                        }
+                        saveData();
+                        if (!isFirebaseConnected) renderApp();
+                        closeModal();
+                        showNotification('Income saved.', 'success');
+                        break;
+                    }
+                    case 'delete-item': {
+                        openModal('confirm-delete', { type, id });
+                        break;
+                    }
+                    case 'execute-delete': {
+                        if (type === 'outgoing') {
+                            state.outgoings = state.outgoings.filter(o => o.id !== id);
+                        } else if (type === 'income') {
+                            state.incomings = state.incomings.filter(i => i.id !== id);
+                        }
+                        saveData();
+                        if (!isFirebaseConnected) renderApp();
+                        closeModal();
+                        showNotification('Item deleted.', 'success');
+                        break;
+                    }
+                    case 'delete-transaction': {
+                        const outgoingId = state.activeOutgoingId;
+                        const outgoing = state.outgoings.find(o => o.id === outgoingId);
+                        if (outgoing && transactionId) {
+                            outgoing.transactions = outgoing.transactions.filter(t => t.id !== transactionId);
+                            saveData();
+                            if (!isFirebaseConnected) renderApp();
+                            openModal('manage-transactions', outgoingId);
+                            showNotification('Transaction deleted.', 'success');
+                        }
+                        break;
+                    }
+                }
+            });
+
+            modalContainer.addEventListener('submit', e => {
+                e.preventDefault();
+                
+                if (e.target.id === 'reconcile-form') {
+                    const actualBalanceInput = document.getElementById('actualBalanceInput');
+                    const actualBalance = parseFloat(actualBalanceInput.value);
+                    if (isNaN(actualBalance)) return showNotification('Please enter a valid actual balance.', 'error');
+
+                    const projected = calculateProjectedBalance();
+                    const difference = actualBalance - projected;
+                    
+                    if (Math.abs(difference) > 0.001) {
+                         state.adjustments.push({
+                            id: crypto.randomUUID(),
+                            desc: 'Balance Reconciliation',
+                            amount: difference,
+                            date: new Date().toISOString()
+                         });
+                         saveData();
+                         if (!isFirebaseConnected) renderApp();
+                         showNotification('Balance reconciled.', 'success');
+                    }
+                    closeModal();
+                }
+
+                if (e.target.id === 'add-transaction-form') {
+                    const desc = document.getElementById('transactionDesc').value.trim();
+                    const amount = document.getElementById('transactionAmount').value;
+                    if (!desc || !amount) return showNotification('Please provide description and amount.', 'error');
+
+                    const outgoing = state.outgoings.find(o => o.id === state.activeOutgoingId);
+                    if(outgoing) {
+                        if (!outgoing.transactions) outgoing.transactions = [];
+                        outgoing.transactions.push({id: crypto.randomUUID(), desc, amount: parseFloat(amount)});
+                        saveData();
+                        if (!isFirebaseConnected) renderApp();
+                        openModal('manage-transactions', state.activeOutgoingId);
+                    }
+                }
+            });
+
+            // --- INITIALIZATION ---
             try {
-                await signInWithPopup(auth, provider);
+                if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                    throw new Error("Firebase config is not set. Using local storage.");
+                }
+                firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                
+                auth.onAuthStateChanged(user => {
+                    if (user) {
+                        console.log("User signed in anonymously:", user.uid);
+                        state.userId = user.uid;
+                        isFirebaseConnected = true;
+                        loadDataFromFirebase();
+                    } else {
+                        auth.signInAnonymously().catch(error => {
+                            console.error("Anonymous sign-in failed:", error);
+                            showNotification("Cloud sync disabled. Using local session storage.", "error");
+                            loadDataFromLocalStorage();
+                        });
+                    }
+                });
+
             } catch (error) {
-                console.error("Google Sign-In Error:", error);
-                authErrorEl.textContent = `Sign-in failed: ${error.message}`;
+                console.error("Firebase initialization failed:", error.message);
+                loadDataFromLocalStorage();
             }
         });
-
-        // --- Start the application ---
-        initialize();
-
     </script>
 </body>
 </html>
