@@ -157,7 +157,7 @@
     <!-- App Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const APP_VERSION = 'v2.1.2';
+            const APP_VERSION = 'v2.3.1';
             const IS_PREVIEW_MODE = window.self !== window.top;
 
             // --- DOM ELEMENTS ---
@@ -297,9 +297,26 @@
 
             const calculateRemainingBudget = () => {
                 return (state.outgoings || []).reduce((sum, out) => {
-                    const spent = getSum(out.transactions, 'amount');
-                    const remaining = (Number(out.budget) || 0) - spent;
-                    return sum + remaining;
+                    if (out.finalized) return sum;
+
+                    const totalSpent = getSum(out.transactions, 'amount');
+                    let remainingBudgetForOutgoing = 0;
+
+                    if (out.type === 'itemized') {
+                        (out.items || []).forEach(item => {
+                            if (!item.finalized) {
+                                const spentOnItem = (out.transactions || [])
+                                    .filter(t => t.itemId === item.id)
+                                    .reduce((itemSum, t) => itemSum + t.amount, 0);
+                                const itemBudget = item.budget || 0;
+                                remainingBudgetForOutgoing += (itemBudget - spentOnItem);
+                            }
+                        });
+                    } else {
+                        remainingBudgetForOutgoing = (out.budget || 0) - totalSpent;
+                    }
+                    
+                    return sum + Math.max(0, remainingBudgetForOutgoing);
                 }, 0);
             };
 
@@ -345,7 +362,26 @@
                 const container = document.getElementById('data-cards');
                 const outgoingsHtml = (state.outgoings || []).map(out => {
                     const spent = getSum(out.transactions, 'amount');
-                    const budget = Number(out.budget) || 0;
+                    let budget = 0;
+
+                    if (out.type === 'itemized') {
+                        budget = (out.items || []).reduce((sum, item) => {
+                            if (item.finalized) {
+                                const spentOnItem = (out.transactions || [])
+                                    .filter(t => t.itemId === item.id)
+                                    .reduce((itemSum, t) => itemSum + t.amount, 0);
+                                return sum + spentOnItem;
+                            }
+                            return sum + (item.budget || 0);
+                        }, 0);
+                    } else {
+                        if (out.finalized) {
+                            budget = spent;
+                        } else {
+                            budget = out.budget || 0;
+                        }
+                    }
+
                     const percentage = budget > 0 ? (spent / budget) * 100 : 0;
                     let progressBarColor = 'bg-green-500';
                     if (percentage > 90) progressBarColor = 'bg-red-500';
@@ -354,8 +390,11 @@
                     return `
                         <li class="group flex items-center justify-between py-3 border-b border-slate-200 last:border-b-0">
                             <div class="flex-1 pr-4">
-                                <span class="font-medium text-slate-700">${out.name}</span>
-                                <button data-action="edit-outgoing" data-id="${out.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
+                                <div class="flex items-center">
+                                    <span class="font-medium text-slate-700">${out.name}</span>
+                                    ${out.type === 'itemized' ? '<i class="fas fa-list-ul text-slate-400 ml-2 text-xs"></i>' : ''}
+                                    <button data-action="edit-outgoing" data-id="${out.id}" class="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-pencil-alt fa-xs"></i></button>
+                                </div>
                                 <p class="text-sm text-slate-500">${formatCurrency(spent)} / ${formatCurrency(budget)}</p>
                                 <div class="w-full bg-slate-200 rounded-full h-2.5 mt-1.5">
                                     <div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
@@ -398,14 +437,20 @@
             };
             
             const modalContainer = document.getElementById('modal-container');
+            let tempBudgetItems = [];
             
             const openModal = (modalType, data = null) => {
                 let content = '';
                 const modalShell = (title, body, footer) => `
                     <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-lg animate-fade-in-up">
-                        <h2 class="text-xl font-bold mb-4 text-slate-800">${title}</h2>
-                        <div class="modal-body">${body}</div>
-                        <div class="modal-footer mt-6 flex justify-between items-center">${footer}</div>
+                        <div class="flex justify-between items-start">
+                           <h2 class="text-xl font-bold mb-4 text-slate-800">${title}</h2>
+                           <div id="modal-header-actions"></div>
+                        </div>
+                        <form id="modal-form">
+                            <div class="modal-body">${body}</div>
+                            <div class="modal-footer mt-6 flex justify-between items-center">${footer}</div>
+                        </form>
                     </div>`;
 
                 switch(modalType) {
@@ -420,10 +465,10 @@
                                 <h3 class="text-lg font-bold text-slate-700 mb-2">Reconcile Balance</h3>
                                 <p class="text-sm text-slate-500 mb-2">To get started, enter your current bank balance here. Use this regularly to keep the app in sync with your bank.</p>
                                 <p class="mb-1 text-sm">App's Projected Balance: <span class="font-bold text-slate-800">${formatCurrency(calculateProjectedBalance())}</span></p>
-                                <form id="reconcile-form" class="flex gap-4 mt-2">
+                                <div id="reconcile-form-inputs" class="flex gap-4 mt-2">
                                     <input id="actualBalanceInput" type="number" step="0.01" class="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Your actual bank balance">
                                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Reconcile</button>
-                                </form>
+                                </div>
                             </div>
 
                             <div class="border-t pt-4">
@@ -431,7 +476,7 @@
                                 <ul class="max-h-48 overflow-y-auto bg-slate-50 p-2 rounded-md">${adjustmentsLog || '<li>No adjustments recorded.</li>'}</ul>
                             </div>
                         `;
-                        const footer = `<span></span><button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
+                        const footer = `<span></span><button data-action="cancel-modal" type="button" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
                         content = modalShell('Settings & Balance', body, footer);
                         break;
                     }
@@ -439,17 +484,42 @@
                     case 'edit-outgoing': {
                         const isEdit = modalType === 'edit-outgoing';
                         const out = isEdit ? state.outgoings.find(o => o.id === data) : {};
+                        tempBudgetItems = isEdit && out.items ? [...out.items] : [];
+                        
                         const body = `
-                            <label for="outgoingName" class="block mb-2 font-medium text-slate-600">Name</label>
-                            <input id="outgoingName" type="text" value="${isEdit ? out.name : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., Summer Holiday">
-                            <label for="outgoingBudget" class="block mb-2 font-medium text-slate-600">Total Budget</label>
-                            <input id="outgoingBudget" type="number" step="0.01" value="${isEdit ? out.budget : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 2000">
+                            <div class="mb-4">
+                                <label for="outgoingName" class="block mb-2 font-medium text-slate-600">Name</label>
+                                <input id="outgoingName" type="text" value="${isEdit ? out.name : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Summer Holiday" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-slate-600">Budget Type</label>
+                                <div class="flex gap-4">
+                                    <label class="flex items-center"><input type="radio" name="budgetType" value="simple" class="mr-2" ${!isEdit || out.type !== 'itemized' ? 'checked' : ''}>Simple</label>
+                                    <label class="flex items-center"><input type="radio" name="budgetType" value="itemized" class="mr-2" ${isEdit && out.type === 'itemized' ? 'checked' : ''}>Itemized</label>
+                                </div>
+                            </div>
+                            <!-- Simple Budget -->
+                            <div id="simple-budget-section" class="${isEdit && out.type === 'itemized' ? 'hidden' : ''}">
+                                <label for="outgoingBudget" class="block mb-2 font-medium text-slate-600">Total Budget</label>
+                                <input id="outgoingBudget" type="number" step="0.01" value="${isEdit && out.type !== 'itemized' ? out.budget : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 2000">
+                            </div>
+                            <!-- Itemized Budget -->
+                            <div id="itemized-budget-section" class="${!isEdit || out.type !== 'itemized' ? 'hidden' : ''}">
+                                <h4 class="font-semibold text-slate-700 mb-2">Budget Items</h4>
+                                <ul id="budget-items-list" class="max-h-40 overflow-y-auto bg-slate-50 p-2 rounded-md mb-2 border"></ul>
+                                <div id="add-item-form" class="flex gap-2 items-center">
+                                    <input id="itemName" type="text" placeholder="Item name" class="flex-grow p-2 border rounded-lg">
+                                    <input id="itemBudget" type="number" step="0.01" placeholder="Budget" class="w-32 p-2 border rounded-lg">
+                                    <button type="button" id="add-item-btn" class="px-3 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700">Add</button>
+                                </div>
+                                <p class="text-right font-bold text-slate-800 mt-2">Total: <span id="itemized-total">£0.00</span></p>
+                            </div>
                         `;
                         const footer = `
-                            <div>${isEdit ? `<button data-action="delete-item" data-type="outgoing" data-id="${data}" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
+                            <div>${isEdit ? `<button data-action="delete-item" data-type="outgoing" data-id="${data}" type="button" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
                             <div class="flex gap-4">
-                                <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
-                                <button data-action="save-outgoing" data-id="${isEdit ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
+                                <button data-action="cancel-modal" type="button" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" data-id="${isEdit ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
                             </div>
                         `;
                         content = modalShell(isEdit ? 'Edit Outgoing' : 'Add Outgoing', body, footer);
@@ -461,17 +531,17 @@
                         const inc = isEditInc ? state.incomings.find(i => i.id === data) : {};
                         const body = `
                             <label for="incomeName" class="block mb-2 font-medium text-slate-600">Name</label>
-                            <input id="incomeName" type="text" value="${isEditInc ? inc.name : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., Q1 Shares">
+                            <input id="incomeName" type="text" value="${isEditInc ? inc.name : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., Q1 Shares" required>
                             <label for="incomeForecast" class="block mb-2 font-medium text-slate-600">Forecast Amount</label>
-                            <input id="incomeForecast" type="number" step="0.01" value="${isEditInc ? inc.forecast : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., 500">
+                            <input id="incomeForecast" type="number" step="0.01" value="${isEditInc ? inc.forecast : ''}" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500" placeholder="e.g., 500" required>
                             <label for="incomeActual" class="block mb-2 font-medium text-slate-600">Actual Amount (0 if not received)</label>
                             <input id="incomeActual" type="number" step="0.01" value="${isEditInc ? inc.actual : ''}" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 550">
                         `;
                         const footer = `
-                            <div>${isEditInc ? `<button data-action="delete-item" data-type="income" data-id="${data}" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
+                            <div>${isEditInc ? `<button data-action="delete-item" data-type="income" data-id="${data}" type="button" class="text-red-600 font-semibold hover:underline">Delete Item</button>` : ''}</div>
                             <div class="flex gap-4">
-                                <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
-                                <button data-action="save-income" data-id="${isEditInc ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
+                                <button data-action="cancel-modal" type="button" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
+                                <button type="submit" data-id="${isEditInc ? data : ''}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Save</button>
                             </div>
                         `;
                         content = modalShell(isEditInc ? 'Edit Income' : 'Add Income', body, footer);
@@ -480,38 +550,84 @@
                     case 'manage-transactions': {
                         state.activeOutgoingId = data;
                         const activeOutgoing = state.outgoings.find(o => o.id === data);
-                        const transactionsHtml = (activeOutgoing.transactions || []).map(t => `
-                            <li class="flex justify-between items-center text-sm py-2 border-b group">
-                                <span>${t.desc}</span>
-                                <div class="flex items-center gap-x-3">
-                                    <span class="font-medium text-slate-700">${formatCurrency(t.amount)}</span>
-                                    <button data-action="delete-transaction" data-transaction-id="${t.id}" class="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <i class="fas fa-trash-alt fa-sm"></i>
-                                    </button>
-                                </div>
-                            </li>
-                        `).join('');
+                        let itemizedSummaryHtml = '';
+                        let transactionCategoryHtml = '';
+
+                        if (activeOutgoing.type === 'itemized') {
+                            itemizedSummaryHtml = (activeOutgoing.items || []).map(item => {
+                                const spentOnItem = (activeOutgoing.transactions || [])
+                                    .filter(t => t.itemId === item.id)
+                                    .reduce((itemSum, t) => itemSum + t.amount, 0);
+                                const lockIcon = item.finalized ? 'fa-lock' : 'fa-unlock';
+                                const lockColor = item.finalized ? 'text-slate-500' : 'text-blue-500';
+                                return `
+                                    <li class="flex justify-between items-center text-sm py-1">
+                                        <span class="font-medium">${item.name}</span>
+                                        <div class="flex items-center gap-x-3">
+                                            <span>${formatCurrency(spentOnItem)} / ${formatCurrency(item.budget)}</span>
+                                            <button type="button" data-action="toggle-finalize-item" data-item-id="${item.id}" class="${lockColor} hover:opacity-75">
+                                                <i class="fas ${lockIcon}"></i>
+                                            </button>
+                                        </div>
+                                    </li>
+                                `;
+                            }).join('');
+
+                            const itemOptions = (activeOutgoing.items || [])
+                                .map(item => `<option value="${item.id}">${item.name}</option>`).join('');
+                            
+                            transactionCategoryHtml = `
+                                <select id="transactionItem" class="w-40 p-2 border rounded-lg text-sm">
+                                    <option value="">-- Category --</option>
+                                    ${itemOptions}
+                                </select>
+                            `;
+                        }
+
+                        const transactionsHtml = (activeOutgoing.transactions || []).map(t => {
+                            let categoryName = '';
+                            if (activeOutgoing.type === 'itemized' && t.itemId) {
+                                const item = (activeOutgoing.items || []).find(i => i.id === t.itemId);
+                                if (item) categoryName = `<span class="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">${item.name}</span>`;
+                            }
+                            return `
+                                <li class="flex justify-between items-center text-sm py-2 border-b group">
+                                    <div class="flex items-center gap-x-2">
+                                        ${categoryName}
+                                        <span>${t.desc}</span>
+                                    </div>
+                                    <div class="flex items-center gap-x-3">
+                                        <span class="font-medium text-slate-700">${formatCurrency(t.amount)}</span>
+                                        <button data-action="delete-transaction" data-transaction-id="${t.id}" class="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <i class="fas fa-trash-alt fa-sm"></i>
+                                        </button>
+                                    </div>
+                                </li>
+                            `;
+                        }).join('');
+
                         const body = `
+                            ${itemizedSummaryHtml ? `<div class="mb-4 border-b pb-2"><h4 class="font-semibold text-slate-700 mb-1">Itemized Summary</h4><ul class="space-y-0.5">${itemizedSummaryHtml}</ul></div>` : ''}
                             <div class="mb-4 border rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
                                 <ul class="space-y-1">${transactionsHtml || '<li class="text-slate-500">No transactions yet.</li>'}</ul>
                             </div>
                             <h3 class="text-base font-semibold mb-2 text-slate-700">Add New Transaction</h3>
-                            <form id="add-transaction-form" class="flex gap-2">
-                                <input id="transactionDesc" type="text" placeholder="Description (e.g., Flights)" class="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                                <input id="transactionAmount" type="number" step="0.01" placeholder="Amount" class="w-32 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                                <button type="submit" data-action="add-transaction" class="px-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Add</button>
-                            </form>
+                            <div id="add-transaction-inputs" class="flex flex-wrap gap-2">
+                                ${transactionCategoryHtml}
+                                <input id="transactionDesc" type="text" placeholder="Description" class="flex-grow p-2 border rounded-lg">
+                                <input id="transactionAmount" type="number" step="0.01" placeholder="Amount" class="w-32 p-2 border rounded-lg">
+                                <button type="submit" class="px-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Add</button>
+                            </div>
                         `;
-                        const footer = `<span></span><button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
+                        const footer = `<span></span><button data-action="cancel-modal" type="button" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Close</button>`;
                         content = modalShell(`Transactions for ${activeOutgoing.name}`, body, footer);
                         break;
                     }
                     case 'confirm-delete': {
-                        const { type, id } = data;
                         const body = `<p class="text-slate-600">Are you sure you want to permanently delete this item? This action cannot be undone.</p>`;
                         const footer = `
-                            <button data-action="cancel-modal" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
-                            <button data-action="execute-delete" data-type="${type}" data-id="${id}" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">Confirm Delete</button>
+                            <button data-action="cancel-modal" type="button" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Cancel</button>
+                            <button data-action="execute-delete" data-type="${data.type}" data-id="${data.id}" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">Confirm Delete</button>
                         `;
                         content = modalShell('Confirm Deletion', body, footer);
                         break;
@@ -520,12 +636,29 @@
                 
                 modalContainer.innerHTML = content;
                 modalContainer.classList.remove('hidden');
+
+                if (modalType === 'add-outgoing' || modalType === 'edit-outgoing') {
+                    setupOutgoingModal(data);
+                } else if (modalType === 'manage-transactions') {
+                    const activeOutgoing = state.outgoings.find(o => o.id === data);
+                    if (activeOutgoing && activeOutgoing.type !== 'itemized') {
+                        const modalHeaderActions = modalContainer.querySelector('#modal-header-actions');
+                        const lockIcon = activeOutgoing.finalized ? 'fa-lock' : 'fa-unlock';
+                        const lockColor = activeOutgoing.finalized ? 'text-slate-500' : 'text-blue-500';
+                        modalHeaderActions.innerHTML = `
+                            <button type="button" data-action="toggle-finalize-simple" class="${lockColor} hover:opacity-75 text-lg">
+                                <i class="fas ${lockIcon}"></i>
+                            </button>
+                        `;
+                    }
+                }
             };
             
             const closeModal = () => {
                 modalContainer.classList.add('hidden');
                 modalContainer.innerHTML = '';
                 state.activeOutgoingId = null;
+                tempBudgetItems = [];
             };
 
             const showNotification = (message, type = 'info') => {
@@ -542,6 +675,66 @@
                     notification.remove();
                 }, 3000);
             };
+
+            const setupOutgoingModal = (outgoingId) => {
+                const simpleSection = document.getElementById('simple-budget-section');
+                const itemizedSection = document.getElementById('itemized-budget-section');
+                const budgetTypeRadios = document.querySelectorAll('input[name="budgetType"]');
+                const addItemBtn = document.getElementById('add-item-btn');
+                const budgetItemsList = document.getElementById('budget-items-list');
+                const itemizedTotalEl = document.getElementById('itemized-total');
+
+                const renderItems = () => {
+                    budgetItemsList.innerHTML = tempBudgetItems.map((item, index) => `
+                        <li class="flex justify-between items-center text-sm p-1">
+                            <span>${item.name} - ${formatCurrency(item.budget)}</span>
+                            <button type="button" data-action="remove-budget-item" data-index="${index}" class="text-red-500 hover:text-red-700">&times;</button>
+                        </li>
+                    `).join('');
+                    const total = tempBudgetItems.reduce((sum, item) => sum + item.budget, 0);
+                    itemizedTotalEl.textContent = formatCurrency(total);
+                };
+
+                budgetTypeRadios.forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        if (e.target.value === 'simple') {
+                            simpleSection.classList.remove('hidden');
+                            itemizedSection.classList.add('hidden');
+                        } else {
+                            simpleSection.classList.add('hidden');
+                            itemizedSection.classList.remove('hidden');
+                        }
+                    });
+                });
+
+                addItemBtn.addEventListener('click', () => {
+                    const nameInput = document.getElementById('itemName');
+                    const budgetInput = document.getElementById('itemBudget');
+                    const name = nameInput.value.trim();
+                    const budget = parseFloat(budgetInput.value);
+
+                    if (name && !isNaN(budget) && budget > 0) {
+                        tempBudgetItems.push({ id: crypto.randomUUID(), name, budget, finalized: false });
+                        renderItems();
+                        nameInput.value = '';
+                        budgetInput.value = '';
+                        nameInput.focus();
+                    } else {
+                        showNotification('Please enter a valid item name and budget.', 'error');
+                    }
+                });
+
+                budgetItemsList.addEventListener('click', (e) => {
+                    const button = e.target.closest('button[data-action="remove-budget-item"]');
+                    if (button) {
+                        const index = parseInt(button.dataset.index, 10);
+                        tempBudgetItems.splice(index, 1);
+                        renderItems();
+                    }
+                });
+
+                renderItems();
+            };
             
             // --- EVENT LISTENERS ---
             
@@ -555,12 +748,10 @@
                 e.preventDefault();
                 authError.textContent = '';
                 if (loginForm.classList.contains('hidden')) {
-                    // Switch to login
                     loginForm.classList.remove('hidden');
                     signupForm.classList.add('hidden');
                     toggleAuthLink.textContent = 'Need an account? Sign up';
                 } else {
-                    // Switch to sign up
                     loginForm.classList.add('hidden');
                     signupForm.classList.remove('hidden');
                     toggleAuthLink.textContent = 'Have an account? Login';
@@ -621,54 +812,12 @@
                 
                 if (!button) return;
 
-                const { action, id, type, transactionId } = button.dataset;
+                const { action, id, type, transactionId, itemId } = button.dataset;
 
                 switch(action) {
                     case 'cancel-modal':
                         closeModal();
                         break;
-                    case 'save-outgoing': {
-                        const name = document.getElementById('outgoingName').value.trim();
-                        const budget = document.getElementById('outgoingBudget').value;
-                        if (!name || !budget) return showNotification('Please fill all fields.', 'error');
-
-                        if (id) {
-                            const out = state.outgoings.find(o => o.id === id);
-                            if (out) {
-                                out.name = name;
-                                out.budget = parseFloat(budget);
-                            }
-                        } else {
-                            state.outgoings.push({ id: crypto.randomUUID(), name, budget: parseFloat(budget), transactions: [] });
-                        }
-                        saveData();
-                        if (!isFirebaseConnected) renderApp();
-                        closeModal();
-                        showNotification('Outgoing saved.', 'success');
-                        break;
-                    }
-                    case 'save-income': {
-                        const name = document.getElementById('incomeName').value.trim();
-                        const forecast = document.getElementById('incomeForecast').value;
-                        const actual = document.getElementById('incomeActual').value;
-                        if (!name || !forecast) return showNotification('Name and Forecast are required.', 'error');
-
-                        if (id) {
-                            const inc = state.incomings.find(i => i.id === id);
-                            if (inc) {
-                                inc.name = name;
-                                inc.forecast = parseFloat(forecast);
-                                inc.actual = parseFloat(actual) || 0;
-                            }
-                        } else {
-                            state.incomings.push({ id: crypto.randomUUID(), name, forecast: parseFloat(forecast), actual: parseFloat(actual) || 0 });
-                        }
-                        saveData();
-                        if (!isFirebaseConnected) renderApp();
-                        closeModal();
-                        showNotification('Income saved.', 'success');
-                        break;
-                    }
                     case 'delete-item': {
                         openModal('confirm-delete', { type, id });
                         break;
@@ -697,46 +846,131 @@
                         }
                         break;
                     }
+                    case 'toggle-finalize-item': {
+                        const outgoingId = state.activeOutgoingId;
+                        const outgoing = state.outgoings.find(o => o.id === outgoingId);
+                        if (outgoing && outgoing.items && itemId) {
+                            const item = outgoing.items.find(i => i.id === itemId);
+                            if (item) {
+                                item.finalized = !item.finalized;
+                                saveData();
+                                if (!isFirebaseConnected) renderApp();
+                                openModal('manage-transactions', outgoingId);
+                                showNotification(`Item ${item.finalized ? 'finalized' : 'un-finalized'}.`, 'success');
+                            }
+                        }
+                        break;
+                    }
+                    case 'toggle-finalize-simple': {
+                        const outgoingId = state.activeOutgoingId;
+                        const outgoing = state.outgoings.find(o => o.id === outgoingId);
+                        if (outgoing) {
+                            outgoing.finalized = !outgoing.finalized;
+                            saveData();
+                            if (!isFirebaseConnected) renderApp();
+                            openModal('manage-transactions', outgoingId);
+                            showNotification(`Budget ${outgoing.finalized ? 'finalized' : 'un-finalized'}.`, 'success');
+                        }
+                        break;
+                    }
                 }
             });
 
             modalContainer.addEventListener('submit', e => {
                 e.preventDefault();
+                const formId = e.target.id;
+                const modalForm = e.target.closest('#modal-form');
                 
-                if (e.target.id === 'reconcile-form') {
-                    const actualBalanceInput = document.getElementById('actualBalanceInput');
-                    const actualBalance = parseFloat(actualBalanceInput.value);
-                    if (isNaN(actualBalance)) return showNotification('Please enter a valid actual balance.', 'error');
+                if (formId === 'modal-form') {
+                    const title = modalForm.parentElement.querySelector('h2').textContent;
+                    if (title.includes('Outgoing')) {
+                        const outgoingId = modalForm.querySelector('button[type="submit"]').dataset.id;
+                        const name = document.getElementById('outgoingName').value.trim();
+                        const budgetType = document.querySelector('input[name="budgetType"]:checked').value;
+                        
+                        const newOutgoing = {
+                            id: outgoingId || crypto.randomUUID(),
+                            name,
+                            type: budgetType,
+                            transactions: outgoingId ? state.outgoings.find(o=>o.id === outgoingId).transactions : []
+                        };
 
-                    const projected = calculateProjectedBalance();
-                    const difference = actualBalance - projected;
-                    
-                    if (Math.abs(difference) > 0.001) {
-                         state.adjustments.push({
-                            id: crypto.randomUUID(),
-                            desc: 'Balance Reconciliation',
-                            amount: difference,
-                            date: new Date().toISOString()
-                         });
-                         saveData();
-                         if (!isFirebaseConnected) renderApp();
-                         showNotification('Balance reconciled.', 'success');
+                        if (budgetType === 'simple') {
+                            const budget = parseFloat(document.getElementById('outgoingBudget').value);
+                            if (isNaN(budget)) return showNotification('Please enter a valid budget.', 'error');
+                            newOutgoing.budget = budget;
+                            newOutgoing.finalized = false; // Default for new simple budgets
+                        } else {
+                            if (tempBudgetItems.length === 0) return showNotification('Please add at least one budget item.', 'error');
+                            newOutgoing.items = tempBudgetItems;
+                        }
+
+                        if (outgoingId) {
+                            const index = state.outgoings.findIndex(o => o.id === outgoingId);
+                            state.outgoings[index] = newOutgoing;
+                        } else {
+                            state.outgoings.push(newOutgoing);
+                        }
+                        showNotification('Outgoing saved.', 'success');
+                    } else if (title.includes('Income')) {
+                        const name = document.getElementById('incomeName').value.trim();
+                        const forecast = document.getElementById('incomeForecast').value;
+                        const actual = document.getElementById('incomeActual').value;
+                        if (!name || !forecast) return showNotification('Name and Forecast are required.', 'error');
+                        
+                        const incomeId = modalForm.querySelector('button[type="submit"]').dataset.id;
+                        if (incomeId) {
+                            const inc = state.incomings.find(i => i.id === incomeId);
+                            if (inc) {
+                                inc.name = name;
+                                inc.forecast = parseFloat(forecast);
+                                inc.actual = parseFloat(actual) || 0;
+                            }
+                        } else {
+                            state.incomings.push({ id: crypto.randomUUID(), name, forecast: parseFloat(forecast), actual: parseFloat(actual) || 0 });
+                        }
+                        showNotification('Income saved.', 'success');
+                    } else if (title.includes('Settings')) {
+                        const actualBalanceInput = document.getElementById('actualBalanceInput');
+                        const actualBalance = parseFloat(actualBalanceInput.value);
+                        if (isNaN(actualBalance)) return showNotification('Please enter a valid actual balance.', 'error');
+
+                        const projected = calculateProjectedBalance();
+                        const difference = actualBalance - projected;
+                        
+                        if (Math.abs(difference) > 0.001) {
+                             state.adjustments.push({
+                                id: crypto.randomUUID(),
+                                desc: 'Balance Reconciliation',
+                                amount: difference,
+                                date: new Date().toISOString()
+                             });
+                             showNotification('Balance reconciled.', 'success');
+                        }
+                    } else if (title.includes('Transactions')) {
+                        const desc = document.getElementById('transactionDesc').value.trim();
+                        const amount = document.getElementById('transactionAmount').value;
+                        const outgoing = state.outgoings.find(o => o.id === state.activeOutgoingId);
+                        
+                        if (!desc || !amount) return showNotification('Please provide description and amount.', 'error');
+                        
+                        let itemId = null;
+                        if (outgoing.type === 'itemized') {
+                            itemId = document.getElementById('transactionItem').value;
+                            if (!itemId) return showNotification('Please select a category for this transaction.', 'error');
+                        }
+
+                        if(outgoing) {
+                            if (!outgoing.transactions) outgoing.transactions = [];
+                            outgoing.transactions.push({id: crypto.randomUUID(), desc, amount: parseFloat(amount), itemId});
+                            openModal('manage-transactions', state.activeOutgoingId);
+                        }
                     }
-                    closeModal();
-                }
 
-                if (e.target.id === 'add-transaction-form') {
-                    const desc = document.getElementById('transactionDesc').value.trim();
-                    const amount = document.getElementById('transactionAmount').value;
-                    if (!desc || !amount) return showNotification('Please provide description and amount.', 'error');
-
-                    const outgoing = state.outgoings.find(o => o.id === state.activeOutgoingId);
-                    if(outgoing) {
-                        if (!outgoing.transactions) outgoing.transactions = [];
-                        outgoing.transactions.push({id: crypto.randomUUID(), desc, amount: parseFloat(amount)});
-                        saveData();
-                        if (!isFirebaseConnected) renderApp();
-                        openModal('manage-transactions', state.activeOutgoingId);
+                    saveData();
+                    if (!isFirebaseConnected) renderApp();
+                    if (!title.includes('Transactions')) {
+                        closeModal();
                     }
                 }
             });
